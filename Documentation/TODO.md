@@ -1,0 +1,12 @@
+- [x] Work on finding a way to retrigger the indexing process from the UI
+- [x] Admin page: Add ability to manually edit JSON for individual orders (save to filesystem and Meilisearch)
+- [x] The "copy path" button does not copy the correct path for me to paste into Windows Explorer.
+- [x] The UI currently truncates options with "+4 options" or whatever. We should be able to expand the list to show all options.
+- [x] The UI could be a bit more fun.
+- [x] We don't need the "photos" pill in the search results. It's not helpful.
+- [x] dark mode
+- [x] The worker should not be concerned with adding single character keywords to the JSON slug (like "x" from "42 x 52" for example).
+- [ ] The worker class needs to be updated so that it runs at 4am every day.
+- [ ] Get a repo created in GitHub for this.
+    - [ ] Add a readme which explains what this project is for, that it uses AI for development and what my process was for creating the project with AI.
+- [ ] Finding a way to indicate that we've used a photo before would be good. Especially if we have already edited them and placed the edited file in another directory.

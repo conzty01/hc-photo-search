@@ -1,0 +1,6 @@
+@HcPhotoSearch.Api_HostAddress = http://localhost:5014
+
+GET {{HcPhotoSearch.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

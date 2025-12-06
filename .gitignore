@@ -1,0 +1,23 @@
+# .NET
+bin/
+obj/
+.vs/
+*.user
+*.lock.json
+
+# Node.js
+node_modules/
+build/
+dist/
+.env
+.DS_Store
+
+# Meilisearch
+meili_data/
+
+# Logs
+logs/
+
+# Examples & Test Samples
+Example Orders/
+Test Order Directory/

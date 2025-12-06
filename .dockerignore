@@ -1,0 +1,10 @@
+**/.git
+**/.vs
+**/bin
+**/obj
+**/node_modules
+**/dist
+Documentation/
+Example Orders/
+Test Order Directory/
+logs/

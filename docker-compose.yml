@@ -1,0 +1,55 @@
+services:
+  frontend:
+    build:
+      context: ./src/hc-photo-search-ui
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    volumes:
+      - ${ORDERS_PATH}:/mnt/orders:ro
+    depends_on:
+      - api
+
+  api:
+    build:
+      context: ./src
+      dockerfile: HcPhotoSearch.Api/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - MEILISEARCH_URL=http://search:7700
+      - MEILISEARCH_MASTER_KEY=${MEILISEARCH_MASTER_KEY}
+    volumes:
+      - ${ORDERS_PATH}:/mnt/orders:rw # Read-write for creating trigger/status files
+    depends_on:
+      - search
+
+  worker:
+    build:
+      context: ./src
+      dockerfile: HcPhotoSearch.Worker/Dockerfile
+    environment:
+      - VOLUSION_API_URL=${VOLUSION_API_URL}
+      - VOLUSION_API_LOGIN=${VOLUSION_API_LOGIN}
+      - VOLUSION_API_PW=${VOLUSION_API_PW}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - ORDERS_PATH=${ORDERS_PATH}
+      - MEILISEARCH_URL=http://search:7700
+      - MEILISEARCH_MASTER_KEY=${MEILISEARCH_MASTER_KEY}
+      - CRON_SCHEDULE=0 2 * * * # Default to 2 AM daily
+    volumes:
+      - ${ORDERS_PATH}:/mnt/orders:rw # Read-write for creating meta.json
+      - ./logs:/app/logs
+
+  search:
+    image: getmeili/meilisearch:v1.12
+    environment:
+      - MEILI_MASTER_KEY=${MEILISEARCH_MASTER_KEY}
+      - MEILI_NO_ANALYTICS=true
+    ports:
+      - "7700:7700"
+    volumes:
+      - meili_data:/meili_data
+
+volumes:
+  meili_data:
