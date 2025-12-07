@@ -19,6 +19,7 @@ services:
     environment:
       - MEILISEARCH_URL=http://search:7700
       - MEILISEARCH_MASTER_KEY=${MEILISEARCH_MASTER_KEY}
+      - ASPNETCORE_HTTP_PORTS=8081
     volumes:
       - ${ORDERS_PATH}:/mnt/orders:rw # Read-write for creating trigger/status files
     depends_on:
