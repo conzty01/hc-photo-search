@@ -113,6 +113,39 @@ app.MapPost("/admin/reindex", async (IConfiguration config) =>
 .WithName("Reindex")
 .WithOpenApi();
 
+// Incremental Index Endpoint - Create incremental trigger file
+app.MapPost("/admin/incremental", async (IConfiguration config) =>
+{
+    try
+    {
+        var ordersPath = config["ORDERS_PATH"] ?? "/mnt/orders";
+        var triggerPath = Path.Combine(ordersPath, "incremental.trigger");
+        var statusPath = Path.Combine(ordersPath, "reindex.status.json");
+
+        // Check if already running
+        if (File.Exists(statusPath))
+        {
+            var statusJson = await File.ReadAllTextAsync(statusPath);
+            var existingStatus = JsonSerializer.Deserialize<ReindexStatus>(statusJson);
+            if (existingStatus?.IsRunning == true)
+            {
+                return Results.Conflict(new { Message = "Indexing is already running" });
+            }
+        }
+
+        // Create trigger file
+        await File.WriteAllTextAsync(triggerPath, DateTime.UtcNow.ToString());
+
+        return Results.Accepted(value: new { Message = "Incremental index triggered successfully" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(detail: ex.Message, statusCode: 500);
+    }
+})
+.WithName("IncrementalIndex")
+.WithOpenApi();
+
 // Reindex Status Endpoint
 app.MapGet("/admin/reindex/status", async (IConfiguration config) =>
 {

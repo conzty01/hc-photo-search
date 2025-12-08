@@ -21,9 +21,6 @@ namespace HcPhotoSearch.Worker
             _meiliSearchService = meiliSearchService;
             _configuration = configuration;
             _ordersDisplayPath = _configuration["ORDERS_PATH"] ?? OrdersPath;
-            
-            // Initialize to yesterday's 4am so scheduled run can trigger on first startup
-            _lastScheduledRun = DateTime.Now.Date.AddDays(-1).AddHours(4);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -33,27 +30,51 @@ namespace HcPhotoSearch.Worker
             // Initialize Meilisearch index
             await _meiliSearchService.InitializeAsync();
 
+            // Trigger incremental index on startup
+            bool isFirstRun = true;
+
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
                     var reindexTriggerPath = Path.Combine(OrdersPath, "reindex.trigger");
+                    var incrementalTriggerPath = Path.Combine(OrdersPath, "incremental.trigger");
                     var reindexStatusPath = Path.Combine(OrdersPath, "reindex.status.json");
                     
-                    // Check if manual trigger exists
-                    bool manualTrigger = File.Exists(reindexTriggerPath);
+                    // Check for manual full reindex trigger
+                    bool fullReindexTrigger = File.Exists(reindexTriggerPath);
                     
-                    // Check if it's time for scheduled run (4 AM daily)
-                    bool scheduledTrigger = ShouldRunScheduledIndex();
+                    // Check for manual incremental trigger
+                    bool manualIncrementalTrigger = File.Exists(incrementalTriggerPath);
                     
-                    if (manualTrigger || scheduledTrigger)
+                    // Check if it's time for scheduled incremental run (4 AM daily)
+                    bool scheduledIncrementalTrigger = ShouldRunScheduledIndex();
+                    
+                    // Trigger incremental on first run
+                    bool startupIncrementalTrigger = isFirstRun;
+                    
+                    if (fullReindexTrigger)
                     {
-                        var triggerType = manualTrigger ? "Manual" : "Scheduled";
-                        _logger.LogInformation("{TriggerType} reindex triggered. Starting scan of orders directory: {Path}", triggerType, OrdersPath);
+                        _logger.LogInformation("Manual full reindex triggered. Starting scan of orders directory: {Path}", OrdersPath);
                         
                         if (Directory.Exists(OrdersPath))
                         {
-                            await ProcessReindexAsync(reindexTriggerPath, reindexStatusPath, stoppingToken);
+                            await ProcessReindexAsync(reindexTriggerPath, reindexStatusPath, stoppingToken, isFull: true);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Orders directory not found: {Path}", OrdersPath);
+                        }
+                    }
+                    else if (manualIncrementalTrigger || scheduledIncrementalTrigger || startupIncrementalTrigger)
+                    {
+                        var triggerType = startupIncrementalTrigger ? "Startup" : 
+                                         manualIncrementalTrigger ? "Manual" : "Scheduled";
+                        _logger.LogInformation("{TriggerType} incremental index triggered. Starting scan of orders directory: {Path}", triggerType, OrdersPath);
+                        
+                        if (Directory.Exists(OrdersPath))
+                        {
+                            await ProcessIncrementalIndexAsync(incrementalTriggerPath, reindexStatusPath, stoppingToken);
                         }
                         else
                         {
@@ -61,10 +82,18 @@ namespace HcPhotoSearch.Worker
                         }
                         
                         // Update last scheduled run time
-                        if (scheduledTrigger)
+                        if (scheduledIncrementalTrigger)
                         {
                             _lastScheduledRun = DateTime.Now;
                         }
+                        
+                        // Clear first run flag
+                        isFirstRun = false;
+                    }
+                    else if (isFirstRun)
+                    {
+                        // Just clear the flag if directory doesn't exist
+                        isFirstRun = false;
                     }
                 }
                 catch (Exception ex)
@@ -90,9 +119,9 @@ namespace HcPhotoSearch.Worker
                     }
                 }
 
-                // Check frequently for manual triggers (every 10 seconds)
+                // Check frequently for manual triggers (every 1 second)
                 // but only run scheduled scans once daily at 4 AM
-                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
             }
         }
 
@@ -116,7 +145,7 @@ namespace HcPhotoSearch.Worker
             return false;
         }
 
-        private async Task ProcessReindexAsync(string reindexTriggerPath, string reindexStatusPath, CancellationToken stoppingToken)
+        private async Task ProcessReindexAsync(string reindexTriggerPath, string reindexStatusPath, CancellationToken stoppingToken, bool isFull)
         {
             var directories = Directory.GetDirectories(OrdersPath);
             var orderDirectories = directories.Where(dir => int.TryParse(Path.GetFileName(dir), out _)).ToList();
@@ -133,7 +162,8 @@ namespace HcPhotoSearch.Worker
                 TotalOrders = totalOrders,
                 CurrentOrder = null,
                 Error = null,
-                LastCompletedRun = GetLastCompletedRun(reindexStatusPath)
+                LastCompletedRun = GetLastCompletedRun(reindexStatusPath),
+                ReindexType = isFull ? "full" : "incremental"
             };
             await WriteStatusAsync(reindexStatusPath, initialStatus);
 
@@ -245,6 +275,146 @@ namespace HcPhotoSearch.Worker
             if (File.Exists(reindexTriggerPath))
             {
                 File.Delete(reindexTriggerPath);
+            }
+        }
+
+        private async Task ProcessIncrementalIndexAsync(string incrementalTriggerPath, string reindexStatusPath, CancellationToken stoppingToken)
+        {
+            var directories = Directory.GetDirectories(OrdersPath);
+            var orderDirectories = directories.Where(dir => int.TryParse(Path.GetFileName(dir), out _)).ToList();
+            
+            // Filter to only new orders (missing order.meta.json) or orders with corrupted files
+            var newOrders = new List<string>();
+            var corruptedOrders = new List<string>();
+            
+            foreach (var dir in orderDirectories)
+            {
+                var metaPath = Path.Combine(dir, "order.meta.json");
+                if (!File.Exists(metaPath))
+                {
+                    newOrders.Add(dir);
+                }
+                else
+                {
+                    // Check if file is corrupted by trying to deserialize it
+                    try
+                    {
+                        var existingJson = await File.ReadAllTextAsync(metaPath, stoppingToken);
+                        JsonSerializer.Deserialize<OrderMeta>(existingJson);
+                    }
+                    catch
+                    {
+                        // File exists but is corrupted
+                        corruptedOrders.Add(dir);
+                        _logger.LogWarning("Detected corrupted order.meta.json for order {OrderNumber}", Path.GetFileName(dir));
+                    }
+                }
+            }
+            
+            var ordersToProcess = newOrders.Concat(corruptedOrders).ToList();
+            var totalOrders = ordersToProcess.Count;
+            var processedCount = 0;
+
+            // Initialize status
+            var initialStatus = new ReindexStatus
+            {
+                IsRunning = true,
+                StartTime = DateTime.UtcNow,
+                EndTime = null,
+                ProcessedOrders = 0,
+                TotalOrders = totalOrders,
+                CurrentOrder = null,
+                Error = null,
+                LastCompletedRun = GetLastCompletedRun(reindexStatusPath),
+                ReindexType = "incremental"
+            };
+            await WriteStatusAsync(reindexStatusPath, initialStatus);
+
+            _logger.LogInformation("Incremental index: Found {NewCount} new orders and {CorruptedCount} corrupted orders to process (Total: {TotalCount})", 
+                newOrders.Count, corruptedOrders.Count, totalOrders);
+
+            foreach (var dir in ordersToProcess)
+            {
+                if (stoppingToken.IsCancellationRequested) break;
+
+                var dirName = Path.GetFileName(dir);
+                var metaPath = Path.Combine(dir, "order.meta.json");
+                
+                _logger.LogInformation("Processing new order: {OrderNumber}", dirName);
+                
+                // Update status with current order
+                var currentStatus = new ReindexStatus
+                {
+                    IsRunning = true,
+                    StartTime = (await ReadStatusAsync(reindexStatusPath))?.StartTime ?? DateTime.UtcNow,
+                    EndTime = null,
+                    ProcessedOrders = processedCount,
+                    TotalOrders = totalOrders,
+                    CurrentOrder = dirName,
+                    Error = null,
+                    LastCompletedRun = GetLastCompletedRun(reindexStatusPath),
+                    ReindexType = "incremental"
+                };
+                await WriteStatusAsync(reindexStatusPath, currentStatus);
+
+                var orderMeta = await _volusionClient.GetOrderAsync(dirName);
+                
+                if (orderMeta != null)
+                {
+                    orderMeta.PhotoPath = Path.Combine(_ordersDisplayPath, dirName);
+                    
+                    // Check if photos exist
+                    var photoFiles = Directory.GetFiles(dir, "*.*")
+                        .Where(f => !f.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    orderMeta.HasPhotos = photoFiles.Count > 0;
+
+                    // Handle NeedsReview Logic for new/corrupted orders
+                    bool isCorrupted = corruptedOrders.Contains(dir);
+                    bool missingComments = string.IsNullOrWhiteSpace(orderMeta.OrderComments);
+                    bool newCustom = orderMeta.IsCustom;
+                    bool newDataQualityIssue = orderMeta.IsCustom && missingComments;
+                    
+                    // Flag for review if: (1) corrupted file, (2) new custom order, or (3) data quality issue
+                    orderMeta.NeedsReview = isCorrupted || newCustom || newDataQualityIssue;
+
+                    // Write JSON
+                    var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
+                    var jsonString = JsonSerializer.Serialize(orderMeta, jsonOptions);
+                    await File.WriteAllTextAsync(metaPath, jsonString, stoppingToken);
+
+                    // Upsert to Meilisearch
+                    await _meiliSearchService.UpsertOrderAsync(orderMeta);
+                    
+                    processedCount++;
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to fetch metadata for order {OrderNumber}", dirName);
+                }
+            }
+
+            // Complete status
+            var completedStatus = new ReindexStatus
+            {
+                IsRunning = false,
+                StartTime = (await ReadStatusAsync(reindexStatusPath))?.StartTime ?? DateTime.UtcNow,
+                EndTime = DateTime.UtcNow,
+                ProcessedOrders = processedCount,
+                TotalOrders = totalOrders,
+                CurrentOrder = null,
+                Error = null,
+                LastCompletedRun = DateTime.UtcNow,
+                ReindexType = "incremental"
+            };
+            await WriteStatusAsync(reindexStatusPath, completedStatus);
+            
+            _logger.LogInformation("Incremental index complete. Processed {Count} new orders. Removing trigger file if exists.", processedCount);
+            
+            // Remove trigger file if it exists
+            if (File.Exists(incrementalTriggerPath))
+            {
+                File.Delete(incrementalTriggerPath);
             }
         }
 

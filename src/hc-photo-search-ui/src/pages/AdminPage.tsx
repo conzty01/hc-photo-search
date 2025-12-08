@@ -15,6 +15,7 @@ interface ReindexStatus {
     currentOrder: string | null;
     error: string | null;
     lastCompletedRun: string | null;
+    reindexType?: string; // "incremental" or "full"
 }
 
 export const AdminPage: React.FC = () => {
@@ -24,6 +25,10 @@ export const AdminPage: React.FC = () => {
     const [showConfirm, setShowConfirm] = useState(false);
     const [isQueued, setIsQueued] = useState(false);
     const [needsReviewOrders, setNeedsReviewOrders] = useState<OrderMeta[]>([]);
+
+    // Track when we last requested a reindex to detect completion
+    // Track the lastCompletedRun value at the time of request to detect changes
+    const requestSnapshotRef = useRef<string | null>(null);
 
     const editorRef = useRef<HTMLDivElement>(null);
 
@@ -60,9 +65,14 @@ export const AdminPage: React.FC = () => {
             const response = await axios.get<ReindexStatus>('/admin/reindex/status');
             setStatus(response.data);
 
-            // If worker picked up the trigger, clear queued state
+            // If worker picked up the trigger or finished, clear queued state
             if (response.data.isRunning) {
                 setIsQueued(false);
+            } else if (requestSnapshotRef.current !== null && response.data.lastCompletedRun !== requestSnapshotRef.current) {
+                // We were waiting for a run (snapshot set) AND the last run is different from snapshot
+                // This means the run completed
+                setIsQueued(false);
+                requestSnapshotRef.current = null; // Reset snapshot
             }
         } catch (error) {
             console.error('Failed to fetch reindex status:', error);
@@ -97,12 +107,38 @@ export const AdminPage: React.FC = () => {
         try {
             await axios.post('/admin/reindex');
             // Set queued state immediately after successful trigger
+            await axios.post('/admin/reindex');
+            // Store the current lastCompletedRun so we can detect when it changes
+            requestSnapshotRef.current = status?.lastCompletedRun || null;
+            setIsQueued(true);
             setIsQueued(true);
         } catch (error: any) {
             if (error.response?.status === 409) {
                 alert('Reindex is already running');
             } else {
                 alert('Failed to trigger reindex: ' + (error.response?.data?.detail || error.message));
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleTriggerIncremental = async () => {
+        if (status?.isRunning || isQueued) {
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            await axios.post('/admin/incremental');
+            requestSnapshotRef.current = status?.lastCompletedRun || null;
+            setIsQueued(true);
+        } catch (error: any) {
+            if (error.response?.status === 409) {
+                alert('Indexing is already running');
+            } else {
+                alert('Failed to trigger incremental index: ' + (error.response?.data?.detail || error.message));
             }
         } finally {
             setLoading(false);
@@ -208,7 +244,14 @@ export const AdminPage: React.FC = () => {
                 {/* Single Unified Card */}
                 <div className="admin-card unified-card">
                     <div className="card-title-row">
-                        <h2>Indexing Status</h2>
+                        <h2>
+                            Indexing Status
+                            {status?.reindexType && (
+                                <span style={{ fontSize: '0.85rem', fontWeight: 'normal', marginLeft: '8px' }}>
+                                    ({status.reindexType === 'full' ? 'Full' : 'Incremental'})
+                                </span>
+                            )}
+                        </h2>
                         <span className={`status-badge-icon ${statusBadge.className}`}>
                             <StatusIcon size={16} className={status?.isRunning ? 'spinning' : ''} />
                             {statusBadge.text}
@@ -275,15 +318,27 @@ export const AdminPage: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Trigger Button */}
-                    <button
-                        onClick={() => setShowConfirm(true)}
-                        disabled={isDisabled}
-                        className="trigger-button-unified"
-                    >
-                        <RefreshCw size={18} className={status?.isRunning ? 'spinning' : ''} />
-                        {isQueued ? 'Reindex Queued...' : status?.isRunning ? 'Reindexing...' : 'Trigger Full Reindex'}
-                    </button>
+                    {/* Trigger Buttons */}
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                        <button
+                            onClick={handleTriggerIncremental}
+                            disabled={isDisabled}
+                            className="trigger-button-unified"
+                            style={{ flex: 1 }}
+                        >
+                            <RefreshCw size={18} className={status?.isRunning ? 'spinning' : ''} />
+                            {isQueued ? 'Indexing Queued...' : status?.isRunning ? 'Indexing...' : 'Incremental Index'}
+                        </button>
+                        <button
+                            onClick={() => setShowConfirm(true)}
+                            disabled={isDisabled}
+                            className="trigger-button-unified"
+                            style={{ flex: 1 }}
+                        >
+                            <RefreshCw size={18} className={status?.isRunning ? 'spinning' : ''} />
+                            {isQueued ? 'Reindex Queued...' : status?.isRunning ? 'Reindexing...' : 'Full Reindex'}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Order Editor Card */}
@@ -298,8 +353,7 @@ export const AdminPage: React.FC = () => {
                     <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
                         <h3>Confirm Reindex</h3>
                         <p>
-                            Are you sure you want to trigger a full reindex? This will reprocess
-                            all orders and may take some time.
+                            Are you sure you want to trigger a full reindex? <strong>This will overwrite any manual changes</strong> you've made to existing orders and may take some time.
                         </p>
                         <div className="dialog-actions">
                             <button onClick={() => setShowConfirm(false)} className="btn-cancel">

@@ -12,5 +12,6 @@ namespace HcPhotoSearch.Shared
         public string? CurrentOrder { get; set; }
         public string? Error { get; set; }
         public DateTime? LastCompletedRun { get; set; }
+        public string? ReindexType { get; set; } // "incremental" or "full"
     }
 }
