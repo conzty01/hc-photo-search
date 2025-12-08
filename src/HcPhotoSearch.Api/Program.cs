@@ -41,13 +41,14 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 
 // Search Endpoint
-app.MapGet("/search", async (string q, MeilisearchClient client) =>
+app.MapGet("/search", async (string q, string? filter, int? limit, MeilisearchClient client) =>
 {
     var index = client.Index("orders");
     var result = await index.SearchAsync<OrderMeta>(q, new SearchQuery
     {
-        Limit = 50,
-        AttributesToHighlight = new[] { "productName", "options.value" }
+        Limit = limit ?? 50,
+        AttributesToHighlight = new[] { "productName", "options.value" },
+        Filter = filter
     });
     return Results.Ok(result);
 })
@@ -64,7 +65,11 @@ app.MapGet("/orders/{id}", async (string id, IConfiguration config) =>
     if (File.Exists(metaPath))
     {
         var json = await File.ReadAllTextAsync(metaPath);
-        var meta = JsonSerializer.Deserialize<OrderMeta>(json);
+        var options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        };
+        var meta = JsonSerializer.Deserialize<OrderMeta>(json, options);
         return Results.Ok(meta);
     }
     return Results.NotFound();

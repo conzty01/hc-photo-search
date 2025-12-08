@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import axios from 'axios';
 import { FileEdit, Loader2, Save, AlertCircle, CheckCircle, X } from 'lucide-react';
@@ -19,11 +20,18 @@ interface OrderMeta {
     options: Array<{ key: string; value: string }>;
     keywords: string[];
     isCustom: boolean;
+    needsReview: boolean;
     hasPhotos: boolean;
     lastIndexedUtc: string;
 }
 
-export const OrderEditorCard: React.FC = () => {
+interface OrderEditorCardProps {
+    onOrderUpdate?: (orderId: string, needsReview: boolean) => void;
+}
+
+export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate }) => {
+    const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const [orderNumber, setOrderNumber] = useState<string>('');
     const [jsonContent, setJsonContent] = useState<string>('');
     const [originalJsonContent, setOriginalJsonContent] = useState<string>('');
@@ -34,8 +42,8 @@ export const OrderEditorCard: React.FC = () => {
     const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-    const handleLoad = async () => {
-        if (!orderNumber.trim()) {
+    const loadOrder = useCallback(async (id: string) => {
+        if (!id.trim()) {
             setError('Please enter an order number');
             return;
         }
@@ -44,15 +52,17 @@ export const OrderEditorCard: React.FC = () => {
         setError(null);
 
         try {
-            const response = await axios.get<OrderMeta>(`/orders/${orderNumber.trim()}`);
+            const response = await axios.get<OrderMeta>(`/orders/${id.trim()}`);
             const json = JSON.stringify(response.data, null, 2);
             setJsonContent(json);
             setOriginalJsonContent(json);
             setLastModified(response.data.lastIndexedUtc);
             setError(null);
+            // Ensure state matches what we just loaded
+            setOrderNumber(id.trim());
         } catch (err: any) {
             if (err.response?.status === 404) {
-                setError(`Order ${orderNumber.trim()} not found`);
+                setError(`Order ${id.trim()} not found`);
             } else {
                 setError('Failed to load order: ' + (err.response?.data?.detail || err.message));
             }
@@ -61,7 +71,29 @@ export const OrderEditorCard: React.FC = () => {
         } finally {
             setLoading(false);
         }
+    }, []);
+
+    const clearEditor = useCallback(() => {
+        setOrderNumber('');
+        setJsonContent('');
+        setOriginalJsonContent('');
+        setLastModified(null);
+        setError(null);
+        setShowClearConfirm(false);
+        // Also clear the URL parameter to prevent useEffect from reloading
+        navigate('/admin', { replace: true });
+    }, [navigate]);
+
+    const handleLoad = () => {
+        loadOrder(orderNumber);
     };
+
+    useEffect(() => {
+        const orderIdParam = searchParams.get('orderId');
+        if (orderIdParam) {
+            loadOrder(orderIdParam);
+        }
+    }, [searchParams, loadOrder]);
 
     const handleSave = async () => {
         if (!jsonContent.trim()) {
@@ -96,6 +128,9 @@ export const OrderEditorCard: React.FC = () => {
             setOriginalJsonContent(updatedJson);
 
             showNotification('success', 'Order updated successfully!');
+            if (onOrderUpdate) {
+                onOrderUpdate(response.data.orderMeta.orderNumber, response.data.orderMeta.needsReview);
+            }
         } catch (err: any) {
             if (err.response?.status === 400) {
                 showNotification('error', err.response.data.message || 'Invalid request');
@@ -136,15 +171,6 @@ export const OrderEditorCard: React.FC = () => {
         } else {
             clearEditor();
         }
-    };
-
-    const clearEditor = () => {
-        setOrderNumber('');
-        setJsonContent('');
-        setOriginalJsonContent('');
-        setLastModified(null);
-        setError(null);
-        setShowClearConfirm(false);
     };
 
     return (
@@ -239,6 +265,32 @@ export const OrderEditorCard: React.FC = () => {
                                 <span className="last-modified">
                                     Last Modified: {formatTimestamp(lastModified)}
                                 </span>
+
+                                <div className="needs-review-toggle">
+                                    <label>
+                                        <input
+                                            type="checkbox"
+                                            checked={(() => {
+                                                try {
+                                                    return JSON.parse(jsonContent).needsReview || false;
+                                                } catch {
+                                                    return false;
+                                                }
+                                            })()}
+                                            onChange={(e) => {
+                                                try {
+                                                    const meta = JSON.parse(jsonContent);
+                                                    meta.needsReview = e.target.checked;
+                                                    setJsonContent(JSON.stringify(meta, null, 2));
+                                                } catch {
+                                                    // ignore invalid json
+                                                }
+                                            }}
+                                        />
+                                        Needs Review
+                                    </label>
+                                </div>
+
                                 <button
                                     onClick={handleSave}
                                     disabled={saving}

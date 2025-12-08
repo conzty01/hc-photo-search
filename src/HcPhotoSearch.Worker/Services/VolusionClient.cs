@@ -112,7 +112,18 @@ namespace HcPhotoSearch.Worker.Services
                 // Keywords generation
                 meta.Keywords = GenerateKeywords(meta);
                 
-                if (!string.IsNullOrEmpty(meta.OrderComments))
+                // Determine if Custom Order based on Name or Code
+                bool isCustomName = meta.ProductName?.StartsWith("Custom", StringComparison.OrdinalIgnoreCase) ?? false;
+                
+                var customCodeKeywords = new[] { "cust", "cst", "custom" };
+                bool isCustomCode = false;
+                if (!string.IsNullOrEmpty(meta.ProductCode))
+                {
+                    isCustomCode = customCodeKeywords.Any(k => meta.ProductCode.Contains(k, StringComparison.OrdinalIgnoreCase)) 
+                                   || meta.ProductCode.Contains("_");
+                }
+
+                if (isCustomName || isCustomCode)
                 {
                     meta.IsCustom = true; 
                 }

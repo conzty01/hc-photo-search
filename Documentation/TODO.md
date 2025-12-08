@@ -6,7 +6,13 @@
 - [x] We don't need the "photos" pill in the search results. It's not helpful.
 - [x] dark mode
 - [x] The worker should not be concerned with adding single character keywords to the JSON slug (like "x" from "42 x 52" for example).
+- [x] When looking at a search result, it would be nice to be able to click an edit icon and have that open up the admin page for that specific order.
+- [x] Persist search state in URL so back button restores search results after navigating away.
+- [x] Not all orders with comments are custom orders, but all custom orders should have order comments. See example orders for more info.
+- [x] We need to develop a workflow for bringing in new orders. What I mean is that, we need to detect when we are indexing a new order for the first time and attempt to parse the options and keywords. If this is a custom order, then we should flag it or something so that the next time the user comes to the application, they can see that there is a custom order they should review and can update the options and keywords. Once they complete this work, the changes should save to the filesystem and Meilisearch.
 - [ ] The worker class needs to be updated so that it runs at 4am every day.
-- [ ] Get a repo created in GitHub for this.
-    - [ ] Add a readme which explains what this project is for, that it uses AI for development and what my process was for creating the project with AI.
+- [ ] In the admin page, would it be possible for us to modify the primary color in-app rather than having it hard-coded in the CSS?
 - [ ] Finding a way to indicate that we've used a photo before would be good. Especially if we have already edited them and placed the edited file in another directory.
+- [ ] Update the worker so that words like "and", "an", and "the" are not included in the keywords.
+- [x] Get a repo created in GitHub for this.
+    - [ ] Add a readme which explains what this project is for, that it uses AI for development and what my process was for creating the project with AI.

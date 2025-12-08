@@ -177,6 +177,42 @@ namespace HcPhotoSearch.Worker
                         .ToList();
                     orderMeta.HasPhotos = photoFiles.Count > 0;
 
+                    // Handle NeedsReview Logic
+                    bool isNew = !File.Exists(metaPath);
+                    OrderMeta? existingMeta = null;
+                     if (!isNew)
+                    {
+                        try 
+                        {
+                            var existingJson = await File.ReadAllTextAsync(metaPath, stoppingToken);
+                            existingMeta = JsonSerializer.Deserialize<OrderMeta>(existingJson);
+                        }
+                        catch { /* Ignore read errors */ }
+                    }
+
+                    bool missingComments = string.IsNullOrWhiteSpace(orderMeta.OrderComments);
+                    
+                    // Logic:
+                    // 1. If user manually set it (previousState), respect that (don't override)  
+                    // 2. If NEW and Custom -> Flag it
+                    // 3. If NEW, Custom, and Missing Comments -> Flag it (Data quality issue)
+                    // Once user has reviewed and cleared flag, don't re-flag on subsequent reindexes
+                    
+                    bool previousState = existingMeta?.NeedsReview ?? false;
+                    bool newCustom = isNew && orderMeta.IsCustom;
+                    bool newDataQualityIssue = isNew && orderMeta.IsCustom && missingComments;
+
+                    // If it existed before, respect the user's choice
+                    // Only auto-flag if it's a new order
+                    if (isNew)
+                    {
+                        orderMeta.NeedsReview = newCustom || newDataQualityIssue;
+                    }
+                    else
+                    {
+                        orderMeta.NeedsReview = previousState;
+                    }
+
                     // Write JSON
                     var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
                     var jsonString = JsonSerializer.Serialize(orderMeta, jsonOptions);

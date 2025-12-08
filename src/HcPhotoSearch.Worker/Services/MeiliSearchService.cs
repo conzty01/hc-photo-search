@@ -48,7 +48,7 @@ namespace HcPhotoSearch.Worker.Services
 
                 // Update settings
                 await indexObj.UpdateSearchableAttributesAsync(new[] { "keywords", "productName", "options.value", "orderNumber", "orderComments" });
-                await indexObj.UpdateFilterableAttributesAsync(new[] { "isCustom" });
+                await indexObj.UpdateFilterableAttributesAsync(new[] { "isCustom", "needsReview" });
                 await indexObj.UpdateSortableAttributesAsync(new[] { "lastIndexedUtc", "orderDate" });
                 await indexObj.UpdateRankingRulesAsync(new[] 
                 { 
@@ -73,7 +73,7 @@ namespace HcPhotoSearch.Worker.Services
             try
             {
                 var index = _client.Index(IndexName);
-                await index.AddDocumentsAsync(new[] { order });
+                await index.UpdateDocumentsAsync(new[] { order });
                 _logger.LogInformation("Upserted order {OrderNumber} to Meilisearch.", order.OrderNumber);
             }
             catch (Exception ex)

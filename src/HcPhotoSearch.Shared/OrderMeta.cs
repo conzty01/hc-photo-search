@@ -18,6 +18,7 @@ namespace HcPhotoSearch.Shared
         public List<ProductOption> Options { get; set; } = new List<ProductOption>();
         public List<string> Keywords { get; set; } = new List<string>();
         public bool IsCustom { get; set; }
+        public bool NeedsReview { get; set; }
         public bool HasPhotos { get; set; }
         public DateTime LastIndexedUtc { get; set; }
     }

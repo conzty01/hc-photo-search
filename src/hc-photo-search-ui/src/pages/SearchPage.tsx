@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import type { OrderMeta, SearchResult } from '../types';
-import { Search, ExternalLink, Settings } from 'lucide-react';
+import { Search, ExternalLink, Settings, FileEdit, X } from 'lucide-react';
 import { OrderOptions } from '../components/OrderOptions';
 import { CopyButton } from '../components/CopyButton';
 import { ThemeToggle } from '../components/ThemeToggle';
@@ -12,30 +12,75 @@ import { ThemeToggle } from '../components/ThemeToggle';
 
 export const SearchPage: React.FC = () => {
     const navigate = useNavigate();
-    const [query, setQuery] = useState('');
+    const [searchParams, setSearchParams] = useSearchParams();
+    const currentSearchTerm = searchParams.get('q') || '';
+
+    // Initialize query from URL if present
+    const [query, setQuery] = useState(currentSearchTerm);
     const [results, setResults] = useState<OrderMeta[]>([]);
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
+    const [needsReviewCount, setNeedsReviewCount] = useState(0);
 
-    const handleSearch = async (e: FormEvent) => {
+    // Fetch Needs Review count on mount
+    useEffect(() => {
+        const fetchNeedsReviewCount = async () => {
+            try {
+                // Search for needsReview=true but limit to 0 results, just want count
+                const response = await axios.get<SearchResult>('/search', {
+                    params: { q: '', filter: 'needsReview=true', limit: 0 }
+                });
+                setNeedsReviewCount(response.data.estimatedTotalHits || 0);
+            } catch (error) {
+                console.error('Failed to fetch needs review count:', error);
+            }
+        };
+        fetchNeedsReviewCount();
+    }, []);
+
+    // Sync local input state with URL when it changes (handle Back button)
+    useEffect(() => {
+        setQuery(currentSearchTerm);
+    }, [currentSearchTerm]);
+
+    // Perform search when URL param changes
+    useEffect(() => {
+        const performSearch = async () => {
+            if (!currentSearchTerm.trim()) {
+                setResults([]);
+                setSearched(false);
+                return;
+            }
+
+            setLoading(true);
+            try {
+                const response = await axios.get<SearchResult>('/search', {
+                    params: { q: currentSearchTerm }
+                });
+                setResults(response.data.hits);
+                setSearched(true);
+            } catch (error) {
+                console.error('Search failed:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        performSearch();
+    }, [currentSearchTerm]);
+
+    const handleSearch = (e: FormEvent) => {
         e.preventDefault();
         if (!query.trim()) return;
-
-        setLoading(true);
-        try {
-            const response = await axios.get<SearchResult>('/search', {
-                params: { q: query }
-            });
-            setResults(response.data.hits);
-            setSearched(true);
-        } catch (error) {
-            console.error('Search failed:', error);
-        } finally {
-            setLoading(false);
-        }
+        setSearchParams({ q: query });
     };
 
-
+    const handleClearSearch = () => {
+        setQuery('');
+        setSearchParams({});
+        setResults([]);
+        setSearched(false);
+    };
 
     return (
         <div className="container">
@@ -45,6 +90,9 @@ export const SearchPage: React.FC = () => {
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                         <button onClick={() => navigate('/admin')} className="admin-button" title="Admin Panel">
                             <Settings size={20} />
+                            {needsReviewCount > 0 && (
+                                <span className="badge-notification">{needsReviewCount}</span>
+                            )}
                         </button>
                         <ThemeToggle />
                     </div>
@@ -58,7 +106,18 @@ export const SearchPage: React.FC = () => {
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder="Search orders (e.g., 'maple chest', '42 inch')..."
                             className="search-input"
+                            style={{ paddingRight: query ? '40px' : '16px' }}
                         />
+                        {query && (
+                            <button
+                                type="button"
+                                onClick={handleClearSearch}
+                                className="clear-button"
+                                title="Clear search"
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
                     </div>
                     <button type="submit" disabled={loading} className="search-button">
                         {loading ? 'Searching...' : 'Search'}
@@ -95,6 +154,13 @@ export const SearchPage: React.FC = () => {
                                 label="Path"
                                 title="Copy UNC Path"
                             />
+                            <button
+                                onClick={() => navigate(`/admin?orderId=${order.orderNumber}`)}
+                                className="action-btn link"
+                                title="Edit Order"
+                            >
+                                <FileEdit size={16} /> Edit
+                            </button>
                             {order.orderUrl && (
                                 <a
                                     href={order.orderUrl}

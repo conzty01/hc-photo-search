@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, RefreshCw, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { ArrowLeft, RefreshCw, AlertCircle, CheckCircle, Clock, FileWarning } from 'lucide-react';
 import { OrderEditorCard } from '../components/OrderEditorCard';
 import { ThemeToggle } from '../components/ThemeToggle';
-
-
+import type { SearchResult, OrderMeta } from '../types';
 
 interface ReindexStatus {
     isRunning: boolean;
@@ -24,6 +23,37 @@ export const AdminPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [isQueued, setIsQueued] = useState(false);
+    const [needsReviewOrders, setNeedsReviewOrders] = useState<OrderMeta[]>([]);
+
+    const editorRef = useRef<HTMLDivElement>(null);
+
+    const fetchNeedsReviewOrders = async () => {
+        try {
+            const response = await axios.get<SearchResult>('/search', {
+                params: { q: '', filter: 'needsReview=true', limit: 50 }
+            });
+            setNeedsReviewOrders(response.data.hits);
+        } catch (error) {
+            console.error('Failed to fetch needs review orders:', error);
+        }
+    };
+
+    const handleOrderSelect = (orderNumber: string) => {
+        navigate(`/admin?orderId=${orderNumber}`);
+        // Small timeout to allow render to settle if needed, though react state update is batched
+        setTimeout(() => {
+            editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+    };
+
+    const handleOrderUpdate = (orderId: string, needsReview: boolean) => {
+        // Optimistically update the list - this is instant
+        if (!needsReview) {
+            setNeedsReviewOrders(prev => prev.filter(o => o.orderNumber !== orderId));
+        }
+        // Don't immediately re-fetch as Meilisearch indexing is async
+        // The list will refresh naturally when navigating or on next page load
+    };
 
     const fetchStatus = async () => {
         try {
@@ -41,6 +71,15 @@ export const AdminPage: React.FC = () => {
 
     useEffect(() => {
         fetchStatus();
+        fetchNeedsReviewOrders();
+
+        // Check if we loaded with an order ID, if so, scroll to editor
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('orderId')) {
+            setTimeout(() => {
+                editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 500); // slightly longer delay on initial load
+        }
 
         // Poll for status every 2 seconds
         const interval = setInterval(fetchStatus, 2000);
@@ -122,6 +161,50 @@ export const AdminPage: React.FC = () => {
             </header>
 
             <main className="admin-content">
+                {/* Needs Review Section */}
+                {needsReviewOrders.length > 0 && (
+                    <div className="admin-card unified-card" style={{ borderColor: '#fcd34d' }}>
+                        <div className="card-title-row">
+                            <h2 style={{ color: '#b45309', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <FileWarning size={20} />
+                                Orders Needing Review
+                            </h2>
+                            <span className="badge-notification" style={{ backgroundColor: '#d97706' }}>
+                                {needsReviewOrders.length}
+                            </span>
+                        </div>
+                        <div className="review-list" style={{ maxHeight: '30vh', overflowY: 'auto', paddingRight: '4px' }}>
+                            {needsReviewOrders.map(order => (
+                                <button
+                                    key={order.orderNumber}
+                                    className="review-item"
+                                    onClick={() => handleOrderSelect(order.orderNumber)}
+                                    style={{
+                                        display: 'flex',
+                                        width: '100%',
+                                        justifyContent: 'space-between',
+                                        padding: '12px',
+                                        marginBottom: '8px',
+                                        border: '1px solid #e5e7eb',
+                                        borderRadius: '8px',
+                                        background: 'white',
+                                        cursor: 'pointer',
+                                        alignItems: 'center'
+                                    }}
+                                >
+                                    <span className="order-number" style={{ fontWeight: 600 }}>#{order.orderNumber}</span>
+                                    <span className="product-name" style={{ margin: 0, fontSize: '0.9rem' }}>
+                                        {order.productName || 'Unknown Product'}
+                                    </span>
+                                    <span className="date" style={{ color: '#6b7280', fontSize: '0.85rem' }}>
+                                        {new Date(order.orderDate).toLocaleDateString()}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Single Unified Card */}
                 <div className="admin-card unified-card">
                     <div className="card-title-row">
@@ -204,7 +287,9 @@ export const AdminPage: React.FC = () => {
                 </div>
 
                 {/* Order Editor Card */}
-                <OrderEditorCard />
+                <div ref={editorRef}>
+                    <OrderEditorCard onOrderUpdate={handleOrderUpdate} />
+                </div>
             </main>
 
             {/* Confirmation Dialog */}
