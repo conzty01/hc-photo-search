@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, RefreshCw, AlertCircle, CheckCircle, Clock, FileWarning } from 'lucide-react';
 import { OrderEditorCard } from '../components/OrderEditorCard';
-import { ThemeToggle } from '../components/ThemeToggle';
+import { AppearanceSettings } from '../components/AppearanceSettings';
 import type { SearchResult, OrderMeta } from '../types';
 
 interface ReindexStatus {
@@ -154,10 +154,7 @@ export const AdminPage: React.FC = () => {
                     <ArrowLeft size={20} />
                     Back to Search
                 </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <h1>Admin Panel</h1>
-                    <ThemeToggle />
-                </div>
+                <h1>Admin Panel</h1>
             </header>
 
             <main className="admin-content">
@@ -204,6 +201,9 @@ export const AdminPage: React.FC = () => {
                         </div>
                     </div>
                 )}
+
+                {/* Appearance Settings Section */}
+                <AppearanceSettings />
 
                 {/* Single Unified Card */}
                 <div className="admin-card unified-card">

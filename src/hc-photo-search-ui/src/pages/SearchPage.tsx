@@ -6,7 +6,6 @@ import type { OrderMeta, SearchResult } from '../types';
 import { Search, ExternalLink, Settings, FileEdit, X } from 'lucide-react';
 import { OrderOptions } from '../components/OrderOptions';
 import { CopyButton } from '../components/CopyButton';
-import { ThemeToggle } from '../components/ThemeToggle';
 
 
 
@@ -87,15 +86,12 @@ export const SearchPage: React.FC = () => {
             <header className="header">
                 <div className="header-top">
                     <h1>Photo Search</h1>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <button onClick={() => navigate('/admin')} className="admin-button" title="Admin Panel">
-                            <Settings size={20} />
-                            {needsReviewCount > 0 && (
-                                <span className="badge-notification">{needsReviewCount}</span>
-                            )}
-                        </button>
-                        <ThemeToggle />
-                    </div>
+                    <button onClick={() => navigate('/admin')} className="admin-button" title="Admin Panel">
+                        <Settings size={20} />
+                        {needsReviewCount > 0 && (
+                            <span className="badge-notification">{needsReviewCount}</span>
+                        )}
+                    </button>
                 </div>
                 <form onSubmit={handleSearch} className="search-form">
                     <div className="search-input-wrapper">
