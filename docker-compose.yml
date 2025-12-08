@@ -20,6 +20,10 @@ services:
       - MEILISEARCH_URL=http://search:7700
       - MEILISEARCH_MASTER_KEY=${MEILISEARCH_MASTER_KEY}
       - ASPNETCORE_HTTP_PORTS=8081
+      - VOLUSION_API_URL=${VOLUSION_API_URL}
+      - VOLUSION_API_LOGIN=${VOLUSION_API_LOGIN}
+      - VOLUSION_API_PW=${VOLUSION_API_PW}
+      - ORDERS_DISPLAY_PATH=${ORDERS_DISPLAY_PATH}
     volumes:
       - ${ORDERS_PATH}:/mnt/orders:rw # Read-write for creating trigger/status files
     depends_on:

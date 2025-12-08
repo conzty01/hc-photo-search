@@ -18,6 +18,9 @@ builder.Services.AddSingleton<MeilisearchClient>(sp =>
     return new MeilisearchClient(url, key);
 });
 
+// Volusion Client
+builder.Services.AddHttpClient<VolusionClient>();
+
 // CORS
 builder.Services.AddCors(options =>
 {
@@ -223,6 +226,120 @@ app.MapPut("/admin/orders/{orderNumber}", async (string orderNumber, [FromBody] 
     }
 })
 .WithName("UpdateOrder")
+.WithOpenApi();
+
+// Reindex Single Order Endpoint
+app.MapPost("/admin/orders/{orderNumber}/reindex", async (string orderNumber, IConfiguration config, VolusionClient volusionClient, MeilisearchClient msClient) =>
+{
+    try
+    {
+        var ordersPath = config["ORDERS_PATH"] ?? "/mnt/orders";
+        var orderPath = Path.Combine(ordersPath, orderNumber);
+        var metaPath = Path.Combine(orderPath, "order.meta.json");
+
+        // Check if order directory exists
+        if (!Directory.Exists(orderPath))
+        {
+            return Results.NotFound(new { Message = $"Order directory {orderNumber} not found" });
+        }
+
+        // Fetch fresh data from Volusion
+        var orderMeta = await volusionClient.GetOrderAsync(orderNumber);
+        
+        if (orderMeta == null)
+        {
+            return Results.Problem(
+                detail: "Failed to fetch order data from Volusion API. The order may not exist or the API may be unavailable.",
+                statusCode: 500,
+                title: "Volusion API Error"
+            );
+        }
+
+        // Set the photo path with display path
+        var ordersDisplayPath = config["ORDERS_DISPLAY_PATH"] ?? config["ORDERS_PATH"] ?? ordersPath;
+        orderMeta.PhotoPath = Path.Combine(ordersDisplayPath, orderNumber);
+
+        // Check if photos exist
+        var photoFiles = Directory.GetFiles(orderPath, "*.*")
+            .Where(f => !f.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        orderMeta.HasPhotos = photoFiles.Count > 0;
+
+        // Preserve the existing needsReview state if file exists
+        if (File.Exists(metaPath))
+        {
+            try
+            {
+                var existingJson = await File.ReadAllTextAsync(metaPath);
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var existingMeta = JsonSerializer.Deserialize<OrderMeta>(existingJson, options);
+                if (existingMeta != null)
+                {
+                    orderMeta.NeedsReview = existingMeta.NeedsReview;
+                }
+            }
+            catch
+            {
+                // If we can't read the existing file, use the new value (which is false by default)
+            }
+        }
+
+        // Update timestamp
+        orderMeta.LastIndexedUtc = DateTime.UtcNow;
+
+        // Serialize to JSON
+        var json = JsonSerializer.Serialize(orderMeta, new JsonSerializerOptions 
+        { 
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
+
+        string? filesystemError = null;
+        string? meilisearchError = null;
+
+        // Try to write to filesystem
+        try
+        {
+            await File.WriteAllTextAsync(metaPath, json);
+        }
+        catch (Exception ex)
+        {
+            filesystemError = ex.Message;
+        }
+
+        // Try to update Meilisearch
+        try
+        {
+            var index = msClient.Index("orders");
+            await index.UpdateDocumentsAsync(new[] { orderMeta });
+        }
+        catch (Exception ex)
+        {
+            meilisearchError = ex.Message;
+        }
+
+        // Check if both operations succeeded
+        if (filesystemError != null || meilisearchError != null)
+        {
+            var errors = new List<string>();
+            if (filesystemError != null) errors.Add($"Filesystem: {filesystemError}");
+            if (meilisearchError != null) errors.Add($"Meilisearch: {meilisearchError}");
+            
+            return Results.Problem(
+                detail: string.Join("; ", errors),
+                statusCode: 500,
+                title: "Partial update failure"
+            );
+        }
+
+        return Results.Ok(new { Message = "Order reindexed successfully", OrderMeta = orderMeta });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(detail: ex.Message, statusCode: 500);
+    }
+})
+.WithName("ReindexOrder")
 .WithOpenApi();
 
 app.Run();

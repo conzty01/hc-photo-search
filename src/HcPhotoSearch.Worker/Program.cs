@@ -1,5 +1,6 @@
 using HcPhotoSearch.Worker;
 using HcPhotoSearch.Worker.Services;
+using HcPhotoSearch.Shared;
 
 var builder = Host.CreateApplicationBuilder(args);
 

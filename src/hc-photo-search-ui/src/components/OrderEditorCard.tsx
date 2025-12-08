@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import axios from 'axios';
-import { FileEdit, Loader2, Save, AlertCircle, CheckCircle, X } from 'lucide-react';
+import { FileEdit, Loader2, Save, AlertCircle, CheckCircle, X, RefreshCw } from 'lucide-react';
 
 
 
@@ -35,9 +35,9 @@ export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate 
     const [orderNumber, setOrderNumber] = useState<string>('');
     const [jsonContent, setJsonContent] = useState<string>('');
     const [originalJsonContent, setOriginalJsonContent] = useState<string>('');
-    const [lastModified, setLastModified] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [reindexing, setReindexing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -56,7 +56,6 @@ export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate 
             const json = JSON.stringify(response.data, null, 2);
             setJsonContent(json);
             setOriginalJsonContent(json);
-            setLastModified(response.data.lastIndexedUtc);
             setError(null);
             // Ensure state matches what we just loaded
             setOrderNumber(id.trim());
@@ -67,7 +66,6 @@ export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate 
                 setError('Failed to load order: ' + (err.response?.data?.detail || err.message));
             }
             setJsonContent('');
-            setLastModified(null);
         } finally {
             setLoading(false);
         }
@@ -77,7 +75,6 @@ export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate 
         setOrderNumber('');
         setJsonContent('');
         setOriginalJsonContent('');
-        setLastModified(null);
         setError(null);
         setShowClearConfirm(false);
         // Also clear the URL parameter to prevent useEffect from reloading
@@ -120,7 +117,6 @@ export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate 
 
         try {
             const response = await axios.put(`/admin/orders/${orderNumber.trim()}`, orderMeta);
-            setLastModified(response.data.orderMeta.lastIndexedUtc);
 
             // Update the JSON content with the response to get the updated timestamp
             const updatedJson = JSON.stringify(response.data.orderMeta, null, 2);
@@ -144,15 +140,42 @@ export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate 
         }
     };
 
+    const handleReindex = async () => {
+        if (!orderNumber.trim()) {
+            showNotification('error', 'No order loaded');
+            return;
+        }
+
+        setReindexing(true);
+
+        try {
+            const response = await axios.post(`/admin/orders/${orderNumber.trim()}/reindex`);
+
+            // Update the JSON content with the response
+            const updatedJson = JSON.stringify(response.data.orderMeta, null, 2);
+            setJsonContent(updatedJson);
+            setOriginalJsonContent(updatedJson);
+
+            showNotification('success', 'Order reindexed successfully from Volusion!');
+            if (onOrderUpdate) {
+                onOrderUpdate(response.data.orderMeta.orderNumber, response.data.orderMeta.needsReview);
+            }
+        } catch (err: any) {
+            if (err.response?.status === 404) {
+                showNotification('error', err.response.data.message || `Order ${orderNumber.trim()} not found`);
+            } else if (err.response?.status === 500) {
+                showNotification('error', err.response.data.detail || 'Failed to fetch data from Volusion. Please try again later.');
+            } else {
+                showNotification('error', 'Failed to reindex: ' + (err.response?.data?.detail || err.message));
+            }
+        } finally {
+            setReindexing(false);
+        }
+    };
+
     const showNotification = (type: 'success' | 'error', message: string) => {
         setNotification({ type, message });
         setTimeout(() => setNotification(null), 5000);
-    };
-
-    const formatTimestamp = (timestamp: string | null) => {
-        if (!timestamp) return 'Never';
-        const date = new Date(timestamp);
-        return date.toLocaleString();
     };
 
     const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -262,38 +285,55 @@ export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate 
 
                             {/* Footer */}
                             <div className="editor-footer">
-                                <span className="last-modified">
-                                    Last Modified: {formatTimestamp(lastModified)}
-                                </span>
+                                <div className="editor-footer-left">
+                                    <button
+                                        onClick={handleReindex}
+                                        disabled={reindexing || saving || loading}
+                                        className="reindex-button"
+                                    >
+                                        {reindexing ? (
+                                            <>
+                                                <Loader2 size={18} className="spinning" />
+                                                Reindexing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <RefreshCw size={18} />
+                                                Reindex
+                                            </>
+                                        )}
+                                    </button>
 
-                                <div className="needs-review-toggle">
-                                    <label>
-                                        <input
-                                            type="checkbox"
-                                            checked={(() => {
-                                                try {
-                                                    return JSON.parse(jsonContent).needsReview || false;
-                                                } catch {
-                                                    return false;
-                                                }
-                                            })()}
-                                            onChange={(e) => {
-                                                try {
-                                                    const meta = JSON.parse(jsonContent);
-                                                    meta.needsReview = e.target.checked;
-                                                    setJsonContent(JSON.stringify(meta, null, 2));
-                                                } catch {
-                                                    // ignore invalid json
-                                                }
-                                            }}
-                                        />
-                                        Needs Review
-                                    </label>
+                                    <div className="needs-review-toggle">
+                                        <label>
+                                            <input
+                                                type="checkbox"
+                                                checked={(() => {
+                                                    try {
+                                                        return JSON.parse(jsonContent).needsReview || false;
+                                                    } catch {
+                                                        return false;
+                                                    }
+                                                })()}
+                                                onChange={(e) => {
+                                                    try {
+                                                        const meta = JSON.parse(jsonContent);
+                                                        meta.needsReview = e.target.checked;
+                                                        setJsonContent(JSON.stringify(meta, null, 2));
+                                                    } catch {
+                                                        // ignore invalid json
+                                                    }
+                                                }}
+                                                disabled={reindexing || saving || loading}
+                                            />
+                                            Needs Review
+                                        </label>
+                                    </div>
                                 </div>
 
                                 <button
                                     onClick={handleSave}
-                                    disabled={saving}
+                                    disabled={saving || reindexing || loading}
                                     className="save-button"
                                 >
                                     {saving ? (

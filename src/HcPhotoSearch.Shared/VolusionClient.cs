@@ -4,10 +4,9 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Xml.Linq;
-using HcPhotoSearch.Shared;
 using Microsoft.Extensions.Logging;
 
-namespace HcPhotoSearch.Worker.Services
+namespace HcPhotoSearch.Shared
 {
     public class VolusionClient
     {
