@@ -5,7 +5,7 @@ import { ArrowLeft, RefreshCw, AlertCircle, CheckCircle, Clock } from 'lucide-re
 import { OrderEditorCard } from '../components/OrderEditorCard';
 import { ThemeToggle } from '../components/ThemeToggle';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+
 
 interface ReindexStatus {
     isRunning: boolean;
@@ -27,7 +27,7 @@ export const AdminPage: React.FC = () => {
 
     const fetchStatus = async () => {
         try {
-            const response = await axios.get<ReindexStatus>(`${API_URL}/admin/reindex/status`);
+            const response = await axios.get<ReindexStatus>('/admin/reindex/status');
             setStatus(response.data);
 
             // If worker picked up the trigger, clear queued state
@@ -56,7 +56,7 @@ export const AdminPage: React.FC = () => {
         setShowConfirm(false);
 
         try {
-            await axios.post(`${API_URL}/admin/reindex`);
+            await axios.post('/admin/reindex');
             // Set queued state immediately after successful trigger
             setIsQueued(true);
         } catch (error: any) {

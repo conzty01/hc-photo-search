@@ -8,7 +8,7 @@ import { OrderOptions } from '../components/OrderOptions';
 import { CopyButton } from '../components/CopyButton';
 import { ThemeToggle } from '../components/ThemeToggle';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+
 
 export const SearchPage: React.FC = () => {
     const navigate = useNavigate();
@@ -23,7 +23,7 @@ export const SearchPage: React.FC = () => {
 
         setLoading(true);
         try {
-            const response = await axios.get<SearchResult>(`${API_URL}/search`, {
+            const response = await axios.get<SearchResult>('/search', {
                 params: { q: query }
             });
             setResults(response.data.hits);

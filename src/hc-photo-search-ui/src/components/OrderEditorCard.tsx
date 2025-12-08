@@ -3,7 +3,7 @@ import Editor from '@monaco-editor/react';
 import axios from 'axios';
 import { FileEdit, Loader2, Save, AlertCircle, CheckCircle, X } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+
 
 interface OrderMeta {
     version: string;
@@ -44,7 +44,7 @@ export const OrderEditorCard: React.FC = () => {
         setError(null);
 
         try {
-            const response = await axios.get<OrderMeta>(`${API_URL}/orders/${orderNumber.trim()}`);
+            const response = await axios.get<OrderMeta>(`/orders/${orderNumber.trim()}`);
             const json = JSON.stringify(response.data, null, 2);
             setJsonContent(json);
             setOriginalJsonContent(json);
@@ -87,7 +87,7 @@ export const OrderEditorCard: React.FC = () => {
         setSaving(true);
 
         try {
-            const response = await axios.put(`${API_URL}/admin/orders/${orderNumber.trim()}`, orderMeta);
+            const response = await axios.put(`/admin/orders/${orderNumber.trim()}`, orderMeta);
             setLastModified(response.data.orderMeta.lastIndexedUtc);
 
             // Update the JSON content with the response to get the updated timestamp
