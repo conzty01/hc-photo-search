@@ -15,6 +15,23 @@ namespace HcPhotoSearch.Shared
         private readonly string _apiUrl;
         private readonly string _apiKey;
 
+        // Stop words to exclude from keywords
+        private static readonly HashSet<string> StopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // Articles
+            "a", "an", "the",
+            // Conjunctions
+            "and", "or", "but", "nor",
+            // Prepositions
+            "in", "on", "at", "by", "for", "with", "from", "to", "of", "about", "as", "into", "through", "over", "under",
+            // Pronouns
+            "it", "its", "this", "that", "these", "those",
+            // Common verbs/auxiliaries
+            "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
+            // Other common words
+            "not", "can", "will", "if", "than", "then", "so", "just", "only"
+        };
+
         public VolusionClient(HttpClient httpClient, ILogger<VolusionClient> logger, Microsoft.Extensions.Configuration.IConfiguration configuration)
         {
             _httpClient = httpClient;
@@ -161,16 +178,18 @@ namespace HcPhotoSearch.Shared
                 var tokens = meta.ProductName.Split(new[] { ' ', '-', '"', '\'', ',' }, StringSplitOptions.RemoveEmptyEntries);
                 foreach (var token in tokens)
                 {
-                    if (token.Length > 1) keywords.Add(token);
+                    // Filter single characters and stop words
+                    if (token.Length > 1 && !StopWords.Contains(token))
+                    {
+                        keywords.Add(token);
+                    }
                 }
             }
 
             foreach (var opt in meta.Options)
             {
-                // Add the full value if it's substantial, but maybe we should apply the rule here too?
-                // The prompt specifically mentioned "x" from "42 x 52".
-                // Let's filter everything > 1 to be safe and cleaner.
-                if (opt.Value.Length > 1)
+                // Add the full value if it's substantial and not a stop word
+                if (opt.Value.Length > 1 && !StopWords.Contains(opt.Value))
                 {
                     keywords.Add(opt.Value);
                 }
@@ -179,7 +198,11 @@ namespace HcPhotoSearch.Shared
                 var tokens = opt.Value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 foreach (var token in tokens)
                 {
-                    if (token.Length > 1) keywords.Add(token);
+                    // Filter single characters and stop words
+                    if (token.Length > 1 && !StopWords.Contains(token))
+                    {
+                        keywords.Add(token);
+                    }
                 }
             }
 

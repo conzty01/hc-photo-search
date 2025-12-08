@@ -21,6 +21,9 @@ namespace HcPhotoSearch.Worker
             _meiliSearchService = meiliSearchService;
             _configuration = configuration;
             _ordersDisplayPath = _configuration["ORDERS_PATH"] ?? OrdersPath;
+            
+            // Initialize to yesterday's 4am so scheduled run can trigger on first startup
+            _lastScheduledRun = DateTime.Now.Date.AddDays(-1).AddHours(4);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -60,7 +63,7 @@ namespace HcPhotoSearch.Worker
                         // Update last scheduled run time
                         if (scheduledTrigger)
                         {
-                            _lastScheduledRun = DateTime.UtcNow;
+                            _lastScheduledRun = DateTime.Now;
                         }
                     }
                 }
@@ -95,23 +98,16 @@ namespace HcPhotoSearch.Worker
 
         private bool ShouldRunScheduledIndex()
         {
-            var now = DateTime.UtcNow;
+            // Use local container time instead of UTC
+            var now = DateTime.Now;
             
-            // If we've never run, don't auto-trigger (wait for manual trigger or next 4 AM)
-            if (_lastScheduledRun == DateTime.MinValue)
-            {
-                return false;
-            }
-            
-            // Check if it's past 4 AM UTC (or configured time) and we haven't run today
-            // For now, using 4 AM UTC. This can be made configurable later.
+            // Target hour: 4 AM local time
             var targetHour = 4;
             
-            // Calculate the last 4 AM
+            // Calculate today's 4 AM
             var todayTarget = now.Date.AddHours(targetHour);
-            var yesterdayTarget = todayTarget.AddDays(-1);
             
-            // If current time is past today's 4 AM and we haven't run since yesterday's 4 AM
+            // If current time is past today's 4 AM and we haven't run since today's 4 AM
             if (now >= todayTarget && _lastScheduledRun < todayTarget)
             {
                 return true;
