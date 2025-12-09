@@ -58,6 +58,34 @@ app.MapGet("/search", async (string q, string? filter, int? limit, MeilisearchCl
 .WithName("SearchOrders")
 .WithOpenApi();
 
+// Autocomplete Values Endpoint
+app.MapGet("/search/autocomplete-values", async (string field, string? filter, MeilisearchClient client) =>
+{
+    var index = client.Index("orders");
+    
+    // We use a search with limit 0 to get just the facet distribution
+    var result = await index.SearchAsync<OrderMeta>("", new SearchQuery
+    {
+        Limit = 0,
+        Facets = new[] { field },
+        Filter = filter
+    });
+
+    if (result.FacetDistribution != null && result.FacetDistribution.ContainsKey(field))
+    {
+        var values = result.FacetDistribution[field].Keys.ToList();
+        var response = new Dictionary<string, List<string>>
+        {
+            { field, values }
+        };
+        return Results.Ok(response);
+    }
+
+    return Results.Ok(new Dictionary<string, List<string>> { { field, new List<string>() } });
+})
+.WithName("GetAutocompleteValues")
+.WithOpenApi();
+
 // Get Order Endpoint
 app.MapGet("/orders/{id}", async (string id, IConfiguration config) =>
 {

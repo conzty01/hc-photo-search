@@ -48,7 +48,7 @@ namespace HcPhotoSearch.Worker.Services
 
                 // Update settings
                 await indexObj.UpdateSearchableAttributesAsync(new[] { "keywords", "productName", "options.value", "orderNumber", "orderComments" });
-                await indexObj.UpdateFilterableAttributesAsync(new[] { "isCustom", "needsReview" });
+                await indexObj.UpdateFilterableAttributesAsync(new[] { "isCustom", "needsReview", "keywords", "options.key", "options.value" });
                 await indexObj.UpdateSortableAttributesAsync(new[] { "lastIndexedUtc", "orderDate" });
                 await indexObj.UpdateRankingRulesAsync(new[] 
                 { 
