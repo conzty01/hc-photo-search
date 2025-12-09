@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import type { OrderMeta, SearchResult } from '../types';
-import { Search, ExternalLink, Settings, FileEdit, X } from 'lucide-react';
+import { Search, ExternalLink, Settings, FileEdit, X, UploadCloud } from 'lucide-react';
 import { OrderOptions } from '../components/OrderOptions';
 import { CopyButton } from '../components/CopyButton';
 
@@ -86,12 +86,17 @@ export const SearchPage: React.FC = () => {
             <header className="header">
                 <div className="header-top">
                     <h1>Photo Search</h1>
-                    <button onClick={() => navigate('/admin')} className="admin-button" title="Admin Panel">
-                        <Settings size={20} />
-                        {needsReviewCount > 0 && (
-                            <span className="badge-notification">{needsReviewCount}</span>
-                        )}
-                    </button>
+                    <div className="header-actions">
+                        <button onClick={() => navigate('/upload')} className="admin-button" title="Upload Photos">
+                            <UploadCloud size={20} />
+                        </button>
+                        <button onClick={() => navigate('/admin')} className="admin-button" title="Admin Panel">
+                            <Settings size={20} />
+                            {needsReviewCount > 0 && (
+                                <span className="badge-notification">{needsReviewCount}</span>
+                            )}
+                        </button>
+                    </div>
                 </div>
                 <form onSubmit={handleSearch} className="search-form">
                     <div className="search-input-wrapper">

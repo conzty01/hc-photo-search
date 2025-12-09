@@ -6,7 +6,7 @@ services:
     ports:
       - "3000:80"
     volumes:
-      - ${ORDERS_PATH}:/mnt/orders:ro
+      - ${ORDERS_PATH}:/mnt/orders
     depends_on:
       - api
 

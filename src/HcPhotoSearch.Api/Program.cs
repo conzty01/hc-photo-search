@@ -375,4 +375,74 @@ app.MapPost("/admin/orders/{orderNumber}/reindex", async (string orderNumber, IC
 .WithName("ReindexOrder")
 .WithOpenApi();
 
+// Upload Photos Endpoint
+app.MapPost("/upload-photos", async (HttpRequest request, IConfiguration config) =>
+{
+    try
+    {
+        if (!request.HasFormContentType)
+            return Results.BadRequest("Invalid content type. Expected multipart/form-data.");
+
+        var form = await request.ReadFormAsync();
+        var orderNumber = form["orderNumber"].ToString();
+        var files = form.Files;
+
+        if (string.IsNullOrWhiteSpace(orderNumber) || !files.Any())
+            return Results.BadRequest("Order number and at least one file are required.");
+
+        // Validate order number (alphanumeric check)
+        if (!orderNumber.All(char.IsLetterOrDigit))
+            return Results.BadRequest("Order number must be alphanumeric.");
+
+        var ordersPath = config["ORDERS_PATH"] ?? "/mnt/orders";
+        var orderPath = Path.Combine(ordersPath, orderNumber);
+
+        // Create directory if it doesn't exist
+        if (!Directory.Exists(orderPath))
+        {
+            Directory.CreateDirectory(orderPath);
+        }
+
+        int successCount = 0;
+        var savedFiles = new List<string>();
+
+        foreach (var file in files)
+        {
+            if (file.Length > 0)
+            {
+                var ext = Path.GetExtension(file.FileName);
+                // Timestamp to avoid collisions
+                var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
+                var safeFileName = Path.GetFileNameWithoutExtension(file.FileName);
+                // Simple hygiene on filename
+                safeFileName = new string(safeFileName.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_').ToArray());
+                
+                var newFileName = $"{safeFileName}_{timestamp}{ext}";
+                var filePath = Path.Combine(orderPath, newFileName);
+
+                using (var stream = new FileStream(filePath, FileMode.Create))
+                {
+                    await file.CopyToAsync(stream);
+                }
+                savedFiles.Add(newFileName);
+                successCount++;
+            }
+        }
+
+        // Trigger incremental index
+        var triggerPath = Path.Combine(ordersPath, "incremental.trigger");
+        // We write the current timestamp to the trigger file
+        await File.WriteAllTextAsync(triggerPath, DateTime.UtcNow.ToString());
+
+        return Results.Ok(new { Message = $"Uploaded {successCount} files.", Files = savedFiles, OrderPath = orderPath });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(detail: ex.Message, statusCode: 500);
+    }
+})
+.WithName("UploadPhotos")
+.WithOpenApi()
+.DisableAntiforgery();
+
 app.Run();
