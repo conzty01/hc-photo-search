@@ -5,9 +5,9 @@ import axios from 'axios';
 import type { OrderMeta, SearchResult } from '../types';
 import { Search, ExternalLink, Settings, FileEdit, X, UploadCloud } from 'lucide-react';
 import { OrderOptions } from '../components/OrderOptions';
+
+
 import { CopyButton } from '../components/CopyButton';
-
-
 
 export const SearchPage: React.FC = () => {
     const navigate = useNavigate();
@@ -150,11 +150,14 @@ export const SearchPage: React.FC = () => {
                         <OrderOptions options={order.options} />
 
                         <div className="actions">
-                            <CopyButton
-                                text={order.photoPath}
-                                label="Path"
-                                title="Copy UNC Path"
-                            />
+                            {order.photoPath && (
+                                <CopyButton
+                                    text={order.photoPath}
+                                    label="Path"
+                                    title="Copy UNC Path"
+                                />
+                            )}
+
                             <button
                                 onClick={() => navigate(`/admin?orderId=${order.orderNumber}`)}
                                 className="action-btn link"

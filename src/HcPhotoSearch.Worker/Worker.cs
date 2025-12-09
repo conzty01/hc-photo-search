@@ -11,7 +11,7 @@ namespace HcPhotoSearch.Worker
         private readonly MeiliSearchService _meiliSearchService;
         private readonly IConfiguration _configuration;
         private const string OrdersPath = "/mnt/orders"; // Docker internal mount path
-        private readonly string _ordersDisplayPath; // Windows-accessible path for photoPath field
+
         private DateTime _lastScheduledRun = DateTime.MinValue;
 
         public Worker(ILogger<Worker> logger, VolusionClient volusionClient, MeiliSearchService meiliSearchService, IConfiguration configuration)
@@ -20,7 +20,7 @@ namespace HcPhotoSearch.Worker
             _volusionClient = volusionClient;
             _meiliSearchService = meiliSearchService;
             _configuration = configuration;
-            _ordersDisplayPath = _configuration["ORDERS_PATH"] ?? OrdersPath;
+
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -210,13 +210,8 @@ namespace HcPhotoSearch.Worker
                 
                 if (orderMeta != null)
                 {
-                    orderMeta.PhotoPath = Path.Combine(_ordersDisplayPath, dirName);
-                    
-                    // Check if photos exist
-                    var photoFiles = Directory.GetFiles(dir, "*.*")
-                        .Where(f => !f.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-                    orderMeta.HasPhotos = photoFiles.Count > 0;
+                    // Check if photos exist (logic kept just in case but property removed)
+                    // var photoFiles = Directory.GetFiles(dir, "*.*") ...
 
                     // Handle NeedsReview Logic
                     bool isNew = !File.Exists(metaPath);
@@ -255,7 +250,11 @@ namespace HcPhotoSearch.Worker
                     }
 
                     // Write JSON
-                    var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
+                    var jsonOptions = new JsonSerializerOptions 
+                    { 
+                        WriteIndented = true, 
+                        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                    };
                     var jsonString = JsonSerializer.Serialize(orderMeta, jsonOptions);
                     await File.WriteAllTextAsync(metaPath, jsonString, stoppingToken);
 
@@ -376,13 +375,8 @@ namespace HcPhotoSearch.Worker
                 
                 if (orderMeta != null)
                 {
-                    orderMeta.PhotoPath = Path.Combine(_ordersDisplayPath, dirName);
-                    
-                    // Check if photos exist
-                    var photoFiles = Directory.GetFiles(dir, "*.*")
-                        .Where(f => !f.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-                    orderMeta.HasPhotos = photoFiles.Count > 0;
+                    // Check if photos exist (logic kept just in case but property removed)
+                    // var photoFiles = Directory.GetFiles(dir, "*.*") ...
 
                     // Handle NeedsReview Logic for new/corrupted orders
                     bool isCorrupted = corruptedOrders.Contains(dir);
@@ -394,7 +388,11 @@ namespace HcPhotoSearch.Worker
                     orderMeta.NeedsReview = isCorrupted || newCustom || newDataQualityIssue;
 
                     // Write JSON
-                    var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
+                    var jsonOptions = new JsonSerializerOptions 
+                    { 
+                        WriteIndented = true, 
+                        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                    };
                     var jsonString = JsonSerializer.Serialize(orderMeta, jsonOptions);
                     await File.WriteAllTextAsync(metaPath, jsonString, stoppingToken);
 

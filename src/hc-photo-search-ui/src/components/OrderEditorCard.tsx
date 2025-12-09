@@ -13,7 +13,7 @@ interface OrderMeta {
     orderDate: string;
     customerId: string;
     orderComments: string;
-    photoPath: string;
+
     orderUrl: string;
     productName: string;
     productId: string;
@@ -22,7 +22,7 @@ interface OrderMeta {
     keywords: string[];
     isCustom: boolean;
     needsReview: boolean;
-    hasPhotos: boolean;
+
     lastIndexedUtc: string;
 }
 

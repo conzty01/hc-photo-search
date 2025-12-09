@@ -8,7 +8,8 @@ export interface OrderMeta {
     orderDate: string;
     customerId: string;
     orderComments: string;
-    photoPath: string;
+    photoPath?: string;
+
     orderUrl: string;
     productName: string;
     productId: string;
@@ -16,7 +17,7 @@ export interface OrderMeta {
     options: ProductOption[];
     keywords: string[];
     isCustom: boolean;
-    hasPhotos: boolean;
+
     lastIndexedUtc: string;
 }
 

@@ -44,7 +44,7 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 
 // Search Endpoint
-app.MapGet("/search", async (string q, string? filter, int? limit, MeilisearchClient client) =>
+app.MapGet("/search", async (string q, string? filter, int? limit, MeilisearchClient client, IConfiguration config) =>
 {
     var index = client.Index("orders");
     var result = await index.SearchAsync<OrderMeta>(q, new SearchQuery
@@ -53,6 +53,14 @@ app.MapGet("/search", async (string q, string? filter, int? limit, MeilisearchCl
         AttributesToHighlight = new[] { "productName", "options.value" },
         Filter = filter
     });
+
+
+    var displayPath = config["ORDERS_DISPLAY_PATH"] ?? config["ORDERS_PATH"] ?? "/mnt/orders";
+    foreach (var hit in result.Hits)
+    {
+        hit.PhotoPath = Path.Combine(displayPath, hit.OrderNumber);
+    }
+
     return Results.Ok(result);
 })
 .WithName("SearchOrders")
@@ -101,6 +109,11 @@ app.MapGet("/orders/{id}", async (string id, IConfiguration config) =>
             PropertyNameCaseInsensitive = true
         };
         var meta = JsonSerializer.Deserialize<OrderMeta>(json, options);
+        var displayPath = config["ORDERS_DISPLAY_PATH"] ?? config["ORDERS_PATH"] ?? "/mnt/orders";
+        if (meta != null)
+        {
+            meta.PhotoPath = Path.Combine(displayPath, meta.OrderNumber);
+        }
         return Results.Ok(meta);
     }
     return Results.NotFound();
@@ -238,7 +251,8 @@ app.MapPut("/admin/orders/{orderNumber}", async (string orderNumber, [FromBody] 
         var json = JsonSerializer.Serialize(orderMeta, new JsonSerializerOptions 
         { 
             WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         });
 
         string? filesystemError = null;
@@ -316,15 +330,8 @@ app.MapPost("/admin/orders/{orderNumber}/reindex", async (string orderNumber, IC
             );
         }
 
-        // Set the photo path with display path
-        var ordersDisplayPath = config["ORDERS_DISPLAY_PATH"] ?? config["ORDERS_PATH"] ?? ordersPath;
-        orderMeta.PhotoPath = Path.Combine(ordersDisplayPath, orderNumber);
-
-        // Check if photos exist
-        var photoFiles = Directory.GetFiles(orderPath, "*.*")
-            .Where(f => !f.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        orderMeta.HasPhotos = photoFiles.Count > 0;
+        // Check if photos exist (logic kept just in case but property removed)
+        // var photoFiles = Directory.GetFiles(orderPath, "*.*")
 
         // Preserve the existing needsReview state if file exists
         if (File.Exists(metaPath))
@@ -352,7 +359,8 @@ app.MapPost("/admin/orders/{orderNumber}/reindex", async (string orderNumber, IC
         var json = JsonSerializer.Serialize(orderMeta, new JsonSerializerOptions 
         { 
             WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         });
 
         string? filesystemError = null;
@@ -392,6 +400,9 @@ app.MapPost("/admin/orders/{orderNumber}/reindex", async (string orderNumber, IC
                 title: "Partial update failure"
             );
         }
+
+        var displayPath = config["ORDERS_DISPLAY_PATH"] ?? config["ORDERS_PATH"] ?? "/mnt/orders";
+        orderMeta.PhotoPath = Path.Combine(displayPath, orderMeta.OrderNumber);
 
         return Results.Ok(new { Message = "Order reindexed successfully", OrderMeta = orderMeta });
     }

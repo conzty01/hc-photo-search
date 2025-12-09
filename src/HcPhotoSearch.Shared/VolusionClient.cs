@@ -86,7 +86,8 @@ namespace HcPhotoSearch.Shared
                     OrderDate = DateTime.Parse(firstElement.Element("OrderDate")?.Value ?? DateTime.UtcNow.ToString()),
                     CustomerId = firstElement.Element("CustomerID")?.Value,
                     OrderComments = firstElement.Element("Order_Comments")?.Value,
-                    LastIndexedUtc = DateTime.UtcNow
+                    LastIndexedUtc = DateTime.UtcNow,
+                    OrderUrl = GenerateOrderUrl(orderNumber)
                 };
 
                 var productNames = new List<string>();
@@ -207,6 +208,21 @@ namespace HcPhotoSearch.Shared
             }
 
             return keywords.ToList();
+        }
+        private string GenerateOrderUrl(string orderNumber)
+        {
+            try 
+            {
+                // _apiUrl contains the full WebService URL (e.g., https://.../net/WebService.aspx?...)
+                // We just want the scheme and host
+                var uri = new Uri(_apiUrl.Split('?')[0]); 
+                var baseUrl = $"{uri.Scheme}://{uri.Host}";
+                return $"{baseUrl}/admin/AdminDetails_ProcessOrder.asp?table=Orders&ID={orderNumber}";
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }

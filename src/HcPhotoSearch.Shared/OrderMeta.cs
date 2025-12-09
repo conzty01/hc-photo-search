@@ -10,7 +10,9 @@ namespace HcPhotoSearch.Shared
         public DateTime OrderDate { get; set; }
         public string CustomerId { get; set; }
         public string OrderComments { get; set; }
-        public string PhotoPath { get; set; }
+
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? PhotoPath { get; set; }
         public string OrderUrl { get; set; }
         public string ProductName { get; set; }
         public string ProductId { get; set; }
@@ -19,7 +21,7 @@ namespace HcPhotoSearch.Shared
         public List<string> Keywords { get; set; } = new List<string>();
         public bool IsCustom { get; set; }
         public bool NeedsReview { get; set; }
-        public bool HasPhotos { get; set; }
+
         public DateTime LastIndexedUtc { get; set; }
     }
 
