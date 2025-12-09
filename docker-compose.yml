@@ -37,11 +37,10 @@ services:
       - VOLUSION_API_URL=${VOLUSION_API_URL}
       - VOLUSION_API_LOGIN=${VOLUSION_API_LOGIN}
       - VOLUSION_API_PW=${VOLUSION_API_PW}
-      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - ORDERS_PATH=${ORDERS_PATH}
       - MEILISEARCH_URL=http://search:7700
       - MEILISEARCH_MASTER_KEY=${MEILISEARCH_MASTER_KEY}
-      - CRON_SCHEDULE=0 2 * * * # Default to 2 AM daily
+      - CRON_SCHEDULE=${CRON_SCHEDULE:-0 4 * * *} # Default to 4 AM daily
     volumes:
       - ${ORDERS_PATH}:/mnt/orders:rw # Read-write for creating meta.json
       - ./logs:/app/logs

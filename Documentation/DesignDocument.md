@@ -25,24 +25,59 @@ The goal is to build a **mobile-friendly web portal** that allows searching for 
 ---
 
 ## 3. UI Requirements
-- **Single search box** (free-text entry).  
-- **Mobile-first design** (responsive layout).  
-- **Results list:**  
-  - Order number (copy-to-clipboard).  
-  - Product name.  
-  - Badges: `Custom`, `Photos available`.  
-  - Links: Ecommerce order page, product page (if resolvable).  
-  - Desktop path: UNC path (`\\nas\photos\orders\12345`).  
-- **Optional future feature:** Image preview via lightweight NAS file browser API.  
+- **Search/Home Page**:
+  - Central, full‑width search box with auto‑focus, supporting free‑text and fuzzy matching.
+  - Mobile‑first responsive layout with dark‑mode support (theme toggle shows sun/moon icon).
+  - Results list displays:
+    - Order number, product name, selected options.
+    - Badges (e.g., `Custom`).
+    - “Copy Path” button that copies a Windows UNC path (`\\nas\\photos\\orders\\12345`) to clipboard.
+    - “Edit” button linking to `/admin/orders/{id}` for JSON slug editing.
+  - Header toolbar with quick‑access icons:
+    - Upload (navigates to `/upload`).
+    - Admin (navigates to `/admin`).
+- **Admin Page**:
+  - Primary actions: Full reindex, Incremental sync (new & corrupted orders), Order management, Settings.
+  - Reindex button styled as secondary to distinguish from “Save Changes”.
+  - Incremental sync button highlighted for frequent use.
+- **Upload Page**:
+  - Order number input + multi‑file selector.
+  - “Upload Photos” button uses unified admin‑style class for consistent height and visual prominence.
+  - Real‑time success/error toast notifications.
+  - Page remains after upload to allow batch uploads.
+
+  - Single, prominent search box (free‑text) centered at the top.
+  - Mobile‑first responsive layout.
+  - Results list displays:
+    - Order number.
+    - Product name.
+    - Product options.
+    - Badges (e.g., `Custom`).
+    - Copy to clipboard button for Desktop UNC path (`\\nas\photos\orders\12345`).
+    - Edit button which will navigate to the `/admin/orders/{id}` page to edit the JSON slug for the associated order.
+  - Header includes quick‑access icons:
+    - Upload (navigates to `/upload`).
+    - Admin (navigates to `/admin`).
+
+- **Admin Page**:
+  - Buttons for full reindex, incremental sync, order management, and settings.
+
+- **Upload Page**:
+  - Form with order number input and multi‑file selector.
+  - Primary “Upload Photos” button uses the unified admin‑style class for height and visual prominence.
+  - Inline success and error feedback messages.
+  - Remains on the page after upload to allow additional uploads.
 
 ---
 
 ## 4. Backend Requirements
 - **Endpoints:**  
-  - `/search?q=...` → proxy to Meilisearch.  
-  - `/orders/{id}` → return JSON metadata.  
-  - `/admin/reindex?full=false` → trigger incremental ingestion.
-  - `/admin/reindex?full=true` → trigger full resync of all orders.
+  - `/search?q=...` → proxy to Meilisearch.
+  - `/orders/{id}` → return JSON metadata.
+  - `/admin/reindex` → trigger full ecosystem reindex (manual).
+  - `/admin/incremental` → trigger incremental sync (new/missing only).
+  - `/admin/orders` → endpoints for manual order management.
+  - `/upload-photos` → endpoint for mobile photo uploads.
 - **No authentication** (homelab use only).  
 
 ---
@@ -104,20 +139,18 @@ Each order folder contains `order.meta.json`:
 ### 7.1 Nightly CRON Job (Incremental Sync)
 The nightly worker runs automatically to keep the search index up-to-date with new orders:
 
-- **Trigger**: Scheduled CRON job (e.g., 2:00 AM daily) in worker container.
-- **Scope**: Incremental processing only — scans for new/modified orders since last run.
+- **Trigger**: Scheduled check (4:00 AM local time daily) in worker container.
+- **Scope**: Incremental processing only — scans for new orders or corrupted metadata.
 - **Workflow**:
   1. **Scan orders directory**: Enumerate all subdirectories in mounted NAS orders path.
-  2. **Extract order numbers**: Parse folder names to identify order IDs.
-  3. **Filter new/modified orders**:
-     - Check if `order.meta.json` exists in each folder.
-     - If missing → mark as new order (needs processing).
-     - Only process orders that are new or have been modified since last indexing.
-  4. **Fetch metadata from ecommerce API** (see section 7.2).
-  5. **Generate JSON metadata** (see section 7.3).
-  6. **Upsert to Meilisearch** (see section 7.4).
-  7. **Log results**: Record number of orders processed, errors encountered, execution time.
-  8. **Send Discord notification** (optional): Summary of nightly run (e.g., "Processed 12 new orders, 0 errors").
+  2. **Filter new/corrupted orders**:
+     - Check if `order.meta.json` is missing (New).
+     - Check if `order.meta.json` is unreadable (Corrupted).
+  3. **Fetch metadata from ecommerce API** (see section 7.2).
+  4. **Generate JSON metadata** (see section 7.3).
+  5. **Upsert to Meilisearch** (see section 7.4).
+  6. **Log results**: Record number of orders processed, errors encountered, execution time.
+  7. **Send Discord notification** (optional): Summary of nightly run (e.g., "Processed 12 new orders, 0 errors").
 
 ### 7.2 Ecommerce API Integration (Volusion)
 - **Authentication**: Encrypted query parameter passed with each API request.
@@ -152,6 +185,7 @@ For each order, construct the `order.meta.json` file:
 - **Custom order detection**: Flag for manual review if order description unavailable from API and is a custom order.
 - **Keyword generation**:
   - Tokenize product name (split on spaces, punctuation, quotes, hyphens).
+  - Filter out stop words (e.g., "and", "an", "the").
   - Extract option values (parse `[Key:Value]` format from XML).
   - Apply synonym mapping (e.g., 42\" chest → medium chest) from config file.
   - Preserve raw size strings for exact matching.
@@ -161,7 +195,8 @@ For each order, construct the `order.meta.json` file:
   - Format: `https://www.harmonycedar.com/admin/AdminDetails_ProcessOrder.asp?table=Orders&Page=1&ID={orderNumber}`.
   - If order number unavailable → leave `ecommerceOrderUrl` as empty string or null.
 - **UNC path construction**:
-  - Build Windows UNC path: `\\nas\photos\orders\{orderNumber}`.
+  - Build Windows UNC path using configurable base path.
+  - Configured via `ORDERS_DISPLAY_PATH` env var (e.g. `X:\Orders` vs `\\nas\photos\orders`).
   - Store in `photoPath` field for desktop clipboard copy functionality.
 - **Timestamp**: Set `lastIndexedUtc` to current UTC timestamp.
 
@@ -215,6 +250,20 @@ Separate from the nightly CRON job, triggered manually via API endpoint:
   - **Meilisearch connection errors**: Retry up to 3 times with exponential backoff.
   - **Persistent failures**: Log error, send Discord alert, continue processing remaining orders.
 
+### 7.7 Mobile Photo Upload (Manual Ingestion)
+- **Purpose**: Allow users to upload order photos directly from mobile devices immediately after finishing a piece.
+- **Workflow**:
+  1. User navigates to `/upload` page (linked from Search header).
+  2. Enters **Order Number**.
+  3. Selects multiple photos from device gallery or camera.
+  4. **Frontend**: Sends `POST /upload-photos` with `multipart/form-data`.
+  5. **Backend**:
+     - Validates order number.
+     - Creates order directory if it doesn't exist (supporting new orders).
+     - Saves files with timestamp-suffixed names (e.g., `IMG_1234_20251201120000.jpg`) to prevent collisions.
+     - Triggers **incremental index** (`incremental.trigger`) to make photos immediately searchable.
+  6. **Completion**: User sees success message and stays on page to upload more if needed.
+
 ---
 
 ## 8. Search Requirements
@@ -228,7 +277,8 @@ Separate from the nightly CRON job, triggered manually via API endpoint:
 
 ## 9. Deployment
 - **Docker Compose services:**
-  - `frontend` (React, served via nginx).
+  - `frontend` (React + Nginx reverse proxy).
+    - Nginx handles routing `/search` and `/admin` requests to the API container.
   - `api` (ASP.NET Core).
   - `search` (Meilisearch).
   - `worker` (nightly ingestion job).
@@ -242,7 +292,8 @@ Separate from the nightly CRON job, triggered manually via API endpoint:
   - `VOLUSION_API_URL` - Volusion API endpoint.
   - `VOLUSION_API_KEY` - Encrypted authentication parameter.
   - `DISCORD_WEBHOOK_URL` - For error notifications.
-  - `ORDERS_PATH` - Path to mounted NAS orders directory.
+  - `ORDERS_PATH` - Internal Container Path to mounted NAS orders directory (e.g. `/mnt/orders`).
+  - `ORDERS_DISPLAY_PATH` - Windows-accessible path for UI copy-paste functionality.
   - `MEILISEARCH_URL` - Internal Meilisearch service URL.
   - `MEILISEARCH_MASTER_KEY` - Meilisearch admin key.
 
@@ -273,34 +324,6 @@ Separate from the nightly CRON job, triggered manually via API endpoint:
 
 ---
 
-## 11. Open Questions / Future Enhancements
-
-### Resolved
-- ✅ **Ecommerce platform**: Volusion with encrypted query parameter authentication.
-- ✅ **Photo detection**: Check for `.jpg`/`.png` files in order folders.
-- ✅ **NAS access**: Mount orders directory into Docker containers.
-- ✅ **Error handling**: Discord notifications + logging for API failures.
-- ✅ **Sync strategy**: Incremental by default, full resync option available.
-
-### Open Questions
-- **Size alias mapping**: Each product category has different semantics (chests vs. tables vs. round tops). 
-  - **Approach**: Start with simple config file (JSON/YAML) mapping sizes to aliases.
-  - Can evolve to category-specific mappings later.
-- **Product URLs**: Need to verify if Volusion API provides product slugs/handles.
-  - Worker should attempt construction if data available.
-- **Custom order detection**: Order description may not be in API response.
-  - **Fallback**: Flag order numbers for manual review/tagging.
-- **Synonym system implementation**: 
-  - **Recommendation**: Start with hardcoded common synonyms in worker.
-  - Future: Move to editable config file or admin UI.
-
-### Future Enhancements
-- **Mobile path handling**: SMB links won't work on Android. Consider lightweight file browser API for mobile photo viewing.
-- **Image preview**: Direct image viewing in search results (requires NAS file serving).
-- **Manual metadata editing**: UI for correcting/enhancing auto-generated metadata.
-
----
-
 ## 12. Decisions Made
 - **Search backend**: Meilisearch (Dockerized).
 - **Data layer**: JSON metadata files per order folder (canonical source).
@@ -315,3 +338,4 @@ Separate from the nightly CRON job, triggered manually via API endpoint:
 - **Authentication**: None required (homelab/LAN use only).
 - **Path links**: Optimize for desktop (UNC paths); mobile enhancement deferred.
 - **Synonym system**: Start simple (config file), evolve as needed.
+- **Reverse Proxy**: Nginx in frontend container routes all API traffic, solving CORS and simplifying config.

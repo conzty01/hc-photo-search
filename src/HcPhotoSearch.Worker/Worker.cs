@@ -130,13 +130,28 @@ namespace HcPhotoSearch.Worker
             // Use local container time instead of UTC
             var now = DateTime.Now;
             
-            // Target hour: 4 AM local time
+            // Get target hour from CRON_SCHEDULE or default to 4 AM
+            // Expected format: "0 4 * * *" (minute hour day month day-of-week)
             var targetHour = 4;
+            var cronSchedule = _configuration["CRON_SCHEDULE"];
             
-            // Calculate today's 4 AM
+            if (!string.IsNullOrEmpty(cronSchedule))
+            {
+                var parts = cronSchedule.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2 && int.TryParse(parts[1], out int parsedHour))
+                {
+                    targetHour = parsedHour;
+                }
+                else
+                {
+                    _logger.LogWarning("Invalid CRON_SCHEDULE format '{Schedule}'. using default 4 AM.", cronSchedule);
+                }
+            }
+            
+            // Calculate today's target time
             var todayTarget = now.Date.AddHours(targetHour);
             
-            // If current time is past today's 4 AM and we haven't run since today's 4 AM
+            // If current time is past today's target time and we haven't run since then
             if (now >= todayTarget && _lastScheduledRun < todayTarget)
             {
                 return true;
