@@ -1182,7 +1182,7 @@ h1 {
   transition: border-color 0.2s;
   box-sizing: border-box;
   background: white;
-  color: var(--text-primary);
+  color: #1e293b;
 }
 
 .comments-textarea:focus {
