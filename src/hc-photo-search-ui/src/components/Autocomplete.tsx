@@ -11,6 +11,7 @@ interface AutocompleteProps {
     className?: string;
     onSelect: (value: string) => void;
     onChange: (value: string) => void;
+    onEnter?: () => void;
 }
 
 /**
@@ -23,7 +24,8 @@ export const Autocomplete: React.FC<AutocompleteProps> = ({
     placeholder,
     className,
     onSelect,
-    onChange
+    onChange,
+    onEnter
 }) => {
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
@@ -52,6 +54,17 @@ export const Autocomplete: React.FC<AutocompleteProps> = ({
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (showSuggestions && filteredSuggestions.length > 0 && activeSuggestionIndex >= 0 && activeSuggestionIndex < filteredSuggestions.length) {
+                onSelect(filteredSuggestions[activeSuggestionIndex]);
+                setShowSuggestions(false);
+            } else if (onEnter) {
+                onEnter();
+            }
+            return;
+        }
+
         if (showSuggestions && filteredSuggestions.length > 0) {
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
@@ -61,12 +74,6 @@ export const Autocomplete: React.FC<AutocompleteProps> = ({
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 setActiveSuggestionIndex(prev => (prev > 0 ? prev - 1 : 0));
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                if (activeSuggestionIndex >= 0 && activeSuggestionIndex < filteredSuggestions.length) {
-                    onSelect(filteredSuggestions[activeSuggestionIndex]);
-                    setShowSuggestions(false);
-                }
             } else if (e.key === 'Tab') {
                 // Determine which suggestion to select: active, or the first one if none active
                 const indexToSelect = activeSuggestionIndex >= 0 ? activeSuggestionIndex : 0;

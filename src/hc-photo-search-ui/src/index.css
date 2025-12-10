@@ -1251,14 +1251,21 @@ h1 {
 }
 
 /* Keywords Editor */
+/* Keywords Editor */
 .keywords-container {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  flex-direction: column;
+  gap: 12px;
   padding: 16px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius);
   background: white;
+}
+
+.keywords-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .keyword-pill {
@@ -1266,8 +1273,8 @@ h1 {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background-color: var(--bg-color);
-  color: var(--text-primary);
+  background-color: #f1f5f9;
+  color: #1e293b;
   border-radius: 999px;
   font-size: 0.875rem;
   font-weight: 500;
@@ -1296,8 +1303,7 @@ h1 {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
-  min-width: 150px;
+  width: 100%;
 }
 
 .keyword-input {

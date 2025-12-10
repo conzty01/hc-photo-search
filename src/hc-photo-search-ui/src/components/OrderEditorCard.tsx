@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import axios from 'axios';
-import { FileEdit, Loader2, Save, AlertCircle, CheckCircle, X, RefreshCw } from 'lucide-react';
+import { FileEdit, Loader2, Save, AlertCircle, CheckCircle, X, RefreshCw, Plus } from 'lucide-react';
 import { Autocomplete } from './Autocomplete';
 
 
@@ -46,6 +46,10 @@ export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate 
     const [visualOrder, setVisualOrder] = useState<OrderMeta | null>(null);
     const [newOptionKey, setNewOptionKey] = useState('');
     const [newOptionValue, setNewOptionValue] = useState('');
+
+    // Keyword State
+    const [keywordSuggestions, setKeywordSuggestions] = useState<string[]>([]);
+    const [newKeyword, setNewKeyword] = useState('');
 
     // Autocomplete State
     const [optionKeySuggestions, setOptionKeySuggestions] = useState<string[]>([]);
@@ -266,6 +270,7 @@ export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate 
     useEffect(() => {
         if (mode === 'visual') {
             fetchSuggestions('options.key').then(setOptionKeySuggestions);
+            fetchSuggestions('keywords').then(setKeywordSuggestions);
         }
     }, [mode, fetchSuggestions]);
 
@@ -537,22 +542,70 @@ export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate 
                                 </div>
                             </div>
 
-                            {/* Keywords */}
                             <div className="visual-section">
                                 <h3>Keywords</h3>
-                                <textarea
-                                    className="comments-textarea"
-                                    value={visualOrder.keywords ? visualOrder.keywords.join('\n') : ''}
-                                    onChange={(e) => {
-                                        // Filter out empty lines to keep it clean, but allow trailing newline while typing
-                                        // Actually simple split is better so user can type. Cleaning can happen on save?
-                                        // For state sync, we'll keep all lines.
-                                        const lines = e.target.value.split('\n');
-                                        setVisualOrder({ ...visualOrder, keywords: lines });
-                                    }}
-                                    placeholder="Enter keywords (one per line)..."
-                                    rows={5}
-                                />
+                                <div className="keywords-container">
+                                    <div className="keywords-list">
+                                        {visualOrder.keywords && visualOrder.keywords.map((keyword, index) => (
+                                            <div key={index} className="keyword-pill">
+                                                {keyword}
+                                                <button
+                                                    onClick={() => {
+                                                        const newKeywords = visualOrder.keywords.filter((_, i) => i !== index);
+                                                        setVisualOrder({ ...visualOrder, keywords: newKeywords });
+                                                    }}
+                                                    className="keyword-remove"
+                                                    title="Remove"
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="add-keyword-wrapper">
+                                        <Autocomplete
+                                            value={newKeyword}
+                                            onChange={setNewKeyword}
+                                            onSelect={setNewKeyword}
+                                            onEnter={() => {
+                                                if (newKeyword && newKeyword.trim()) {
+                                                    const trimmed = newKeyword.trim();
+                                                    // Prevent duplicates
+                                                    if (!visualOrder.keywords?.includes(trimmed)) {
+                                                        const newKeywords = [...(visualOrder.keywords || []), trimmed];
+                                                        setVisualOrder({ ...visualOrder, keywords: newKeywords });
+                                                        setNewKeyword('');
+                                                    } else {
+                                                        setNewKeyword('');
+                                                    }
+                                                }
+                                            }}
+                                            suggestions={keywordSuggestions}
+                                            placeholder="Add keyword..."
+                                            className="keyword-input"
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                if (newKeyword && newKeyword.trim()) {
+                                                    const trimmed = newKeyword.trim();
+                                                    // Prevent duplicates
+                                                    if (!visualOrder.keywords?.includes(trimmed)) {
+                                                        const newKeywords = [...(visualOrder.keywords || []), trimmed];
+                                                        setVisualOrder({ ...visualOrder, keywords: newKeywords });
+                                                        setNewKeyword('');
+                                                    } else {
+                                                        setNewKeyword('');
+                                                    }
+                                                }
+                                            }}
+                                            disabled={!newKeyword || !newKeyword.trim()}
+                                            className="add-btn-small"
+                                            title="Add Keyword"
+                                        >
+                                            <Plus size={16} />
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Flags */}
