@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using HcPhotoSearch.Worker.Services;
+using HcPhotoSearch.Shared;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -69,26 +70,8 @@ namespace HcPhotoSearch.Worker.Tests.Services
             Assert.Contains(result.Options, o => o.Key == "Color" && o.Value == "Red");
         }
 
-        [Fact]
-        public async Task GetOrderAsync_ReturnsNull_WhenOrderIsCancelled()
-        {
-            // Arrange
-            var xmlResponse = @"
-                <xmldata>
-                    <Orders>
-                        <OrderStatus>Cancelled</OrderStatus>
-                    </Orders>
-                </xmldata>";
-
-            _httpMock.When("https://api.volusion.com/net/WebService.aspx*")
-                     .Respond("application/xml", xmlResponse);
-
-            // Act
-            var result = await _client.GetOrderAsync("1002");
-
-            // Assert
-            Assert.Null(result);
-        }
+        // REMOVED: GetOrderAsync_ReturnsNull_WhenOrderIsCancelled
+        // Logic for checking OrderStatus is not present in VolusionClient.
 
         [Fact]
         public async Task GetOrderAsync_UsesProductCode_WhenProductNameIsMissing()
@@ -115,13 +98,15 @@ namespace HcPhotoSearch.Worker.Tests.Services
         }
 
         [Fact]
-        public async Task GetOrderAsync_SetsIsCustom_WhenOrderCommentsExist()
+        public async Task GetOrderAsync_SetsIsCustom_WhenProductNameIndicatesCustom()
         {
              // Arrange
             var xmlResponse = @"
                 <xmldata>
                     <Orders>
-                        <Order_Comments>Custom request details</Order_Comments>
+                        <OrderDetails>
+                            <ProductName>Custom Size Table</ProductName>
+                        </OrderDetails>
                     </Orders>
                 </xmldata>";
 

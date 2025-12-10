@@ -22,7 +22,7 @@ namespace HcPhotoSearch.Worker.Services
             _client = new MeilisearchClient(url, key);
         }
 
-        public async Task InitializeAsync()
+        public virtual async Task InitializeAsync()
         {
             try
             {
@@ -68,7 +68,7 @@ namespace HcPhotoSearch.Worker.Services
             }
         }
 
-        public async Task UpsertOrderAsync(OrderMeta order)
+        public virtual async Task UpsertOrderAsync(OrderMeta order)
         {
             try
             {

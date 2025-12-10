@@ -485,3 +485,5 @@ app.MapPost("/upload-photos", async (HttpRequest request, IConfiguration config)
 .DisableAntiforgery();
 
 app.Run();
+
+public partial class Program { }

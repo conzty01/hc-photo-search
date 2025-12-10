@@ -10,7 +10,7 @@ namespace HcPhotoSearch.Worker
         private readonly VolusionClient _volusionClient;
         private readonly MeiliSearchService _meiliSearchService;
         private readonly IConfiguration _configuration;
-        private const string OrdersPath = "/mnt/orders"; // Docker internal mount path
+        private readonly string OrdersPath;
 
         private DateTime _lastScheduledRun = DateTime.MinValue;
 
@@ -20,7 +20,7 @@ namespace HcPhotoSearch.Worker
             _volusionClient = volusionClient;
             _meiliSearchService = meiliSearchService;
             _configuration = configuration;
-
+            OrdersPath = configuration["ORDERS_PATH"] ?? "/mnt/orders";
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
