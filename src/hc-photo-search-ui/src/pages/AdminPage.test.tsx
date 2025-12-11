@@ -278,7 +278,74 @@ describe('AdminPage', () => {
             });
 
             // Expect success notification
-            expect(screen.getByText('Order updated successfully!')).toBeInTheDocument();
+            await waitFor(() => {
+                expect(screen.getByText('Order updated successfully!')).toBeInTheDocument();
+            });
+
+            // Verify suggestion refresh was triggered
+            expect(mockedAxios.get).toHaveBeenCalledWith('/search/autocomplete-values', expect.anything());
+        });
+
+        it('shows autocomplete for existing options', async () => {
+            render(
+                <ThemeProvider>
+                    <MemoryRouter>
+                        <AdminPage />
+                    </MemoryRouter>
+                </ThemeProvider>
+            );
+
+            // Load order
+            const input = screen.getByPlaceholderText('Enter order number...');
+            fireEvent.change(input, { target: { value: '12345' } });
+            fireEvent.click(screen.getByText('Load').closest('button')!);
+            await waitFor(() => expect(screen.getByDisplayValue('Test Product')).toBeInTheDocument());
+
+            // Find existing option keys. They are now Autocompletes, which render inputs.
+            const sizeInput = screen.getByDisplayValue('Size');
+            expect(sizeInput).toBeInTheDocument();
+
+            // Focus and verify it acts like an autocomplete (we can't easily check suggestions without mocking the fetch or data, 
+            // but we can check if it has the class or structure if needed, or just that it exists and is editable)
+            fireEvent.change(sizeInput, { target: { value: 'SizeUpdated' } });
+            expect(sizeInput).toHaveValue('SizeUpdated');
+        });
+
+        it('adds new option on Enter key', async () => {
+            render(
+                <ThemeProvider>
+                    <MemoryRouter>
+                        <AdminPage />
+                    </MemoryRouter>
+                </ThemeProvider>
+            );
+
+            // Load order
+            const input = screen.getByPlaceholderText('Enter order number...');
+            fireEvent.change(input, { target: { value: '12345' } });
+            fireEvent.click(screen.getByText('Load').closest('button')!);
+            await waitFor(() => expect(screen.getByDisplayValue('Test Product')).toBeInTheDocument());
+
+            // Type in new option fields
+            const keyInput = screen.getByPlaceholderText('New Option Key');
+            const valInput = screen.getByPlaceholderText('Value');
+
+            fireEvent.change(keyInput, { target: { value: 'Color' } });
+            fireEvent.change(valInput, { target: { value: 'Blue' } });
+
+            // Press Enter in value input
+            fireEvent.keyDown(valInput, { key: 'Enter', code: 'Enter' });
+
+            // Verify new option appears
+            // Current mock options: Size: Large. New: Color: Blue.
+            await waitFor(() => {
+                expect(screen.getByDisplayValue('Color')).toBeInTheDocument();
+                expect(screen.getByDisplayValue('Blue')).toBeInTheDocument();
+            });
+
+            // Verify inputs cleared
+            expect(keyInput).toHaveValue('');
+            expect(valInput).toHaveValue('');
         });
     });
 

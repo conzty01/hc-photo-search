@@ -55,6 +55,9 @@ export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate 
     const [optionKeySuggestions, setOptionKeySuggestions] = useState<string[]>([]);
     const [optionValueSuggestions, setOptionValueSuggestions] = useState<string[]>([]);
 
+    // Suggestion state for existing options editing
+    const [activeFormattedSuggestions, setActiveFormattedSuggestions] = useState<string[]>([]);
+
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [reindexing, setReindexing] = useState(false);
@@ -179,6 +182,12 @@ export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate 
             showNotification('success', 'Order updated successfully!');
             if (onOrderUpdate) {
                 onOrderUpdate(response.data.orderMeta.orderNumber, response.data.orderMeta.needsReview);
+            }
+
+            // Refresh suggestions to include any new keys/keywords
+            if (mode === 'visual') {
+                fetchSuggestions('options.key').then(setOptionKeySuggestions);
+                fetchSuggestions('keywords').then(setKeywordSuggestions);
             }
         } catch (err: any) {
             if (err.response?.status === 400) {
@@ -459,24 +468,66 @@ export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate 
                                 <div className="options-list-editor">
                                     {visualOrder.options?.map((opt, i) => (
                                         <div key={i} className="option-row">
-                                            <input
-                                                className="order-input"
+                                            <Autocomplete
                                                 value={opt.key}
-                                                onChange={(e) => {
+                                                onChange={(val) => {
                                                     const newOptions = [...visualOrder.options];
-                                                    newOptions[i] = { ...opt, key: e.target.value };
+                                                    newOptions[i] = { ...opt, key: val };
                                                     setVisualOrder({ ...visualOrder, options: newOptions });
                                                 }}
+                                                onSelect={(val) => {
+                                                    const newOptions = [...visualOrder.options];
+                                                    newOptions[i] = { ...opt, key: val };
+                                                    setVisualOrder({ ...visualOrder, options: newOptions });
+                                                }}
+                                                suggestions={optionKeySuggestions}
+                                                placeholder="Key"
                                             />
                                             <span className="separator">:</span>
-                                            <input
-                                                className="order-input"
+                                            <Autocomplete
                                                 value={opt.value}
-                                                onChange={(e) => {
+                                                onChange={(val) => {
                                                     const newOptions = [...visualOrder.options];
-                                                    newOptions[i] = { ...opt, value: e.target.value };
+                                                    newOptions[i] = { ...opt, value: val };
                                                     setVisualOrder({ ...visualOrder, options: newOptions });
                                                 }}
+                                                onSelect={(val) => {
+                                                    const newOptions = [...visualOrder.options];
+                                                    newOptions[i] = { ...opt, value: val };
+                                                    setVisualOrder({ ...visualOrder, options: newOptions });
+                                                }}
+                                                // Function to fetch suggestions dynamically for this row's key when focused
+                                                // Ideally we'd have a per-row suggestion state, but for now we can try using the global one
+                                                // if the user focuses this field.
+                                                // However, without complex state management, let's just use empty for now or generic?
+                                                // Improved Implementation: 
+                                                // We will set newOptionKey to this row's key temporarily to drive the suggestion engine?
+                                                // No, that would mess up the "New Option" source.
+                                                // Let's pass a special onFocus handler?
+                                                // Actually, simpler: Let's just fetch all values or leave it for now if per-row is too complex for this refactor.
+                                                // BUT the user asked specifically for this.
+                                                // So I MUST provide suggestions.
+
+                                                // STRATEGY: 
+                                                // We will simply NOT provide filtered suggestions for *values* of existing rows in this iteration
+                                                // unless they match the 'newOptionKey'. 
+                                                // wait, that's bad.
+                                                // BETTER STRATEGY:
+                                                // We will use a ref or state for "active editing row" to drive suggestions?
+                                                // Let's just pass [] for now to satisfy the "Autocomplete component" requirement (UI consistency)
+                                                // even if suggestions are empty, it fixes the "UI look".
+                                                // BUT the user wants "Autocomplete never appears".
+                                                // So I MUST provide suggestions.
+
+                                                // Implementation: I'll use a onFocus to load suggestions for THIS key into a generic 'activeValueSuggestions' state.
+                                                onFocus={() => {
+                                                    // Fetch suggestions for this specific key
+                                                    const safeKey = opt.key.replace(/'/g, "\\'");
+                                                    fetchSuggestions('options.value', `options.key = '${safeKey}'`)
+                                                        .then(setActiveFormattedSuggestions);
+                                                }}
+                                                suggestions={activeFormattedSuggestions}
+                                            // We need to add state for 'activeFormattedSuggestions' and update it on focus.
                                             />
                                             <button
                                                 onClick={() => {
@@ -509,6 +560,14 @@ export const OrderEditorCard: React.FC<OrderEditorCardProps> = ({ onOrderUpdate 
                                             suggestions={optionValueSuggestions}
                                             placeholder="Value"
                                             className="option-value-input"
+                                            onEnter={() => {
+                                                if (newOptionKey && newOptionValue) {
+                                                    const newOptions = [...(visualOrder.options || []), { key: newOptionKey, value: newOptionValue }];
+                                                    setVisualOrder({ ...visualOrder, options: newOptions });
+                                                    setNewOptionKey('');
+                                                    setNewOptionValue('');
+                                                }
+                                            }}
                                         />
                                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                             <button

@@ -12,6 +12,7 @@ interface AutocompleteProps {
     onSelect: (value: string) => void;
     onChange: (value: string) => void;
     onEnter?: () => void;
+    onFocus?: () => void;
 }
 
 /**
@@ -25,7 +26,8 @@ export const Autocomplete: React.FC<AutocompleteProps> = ({
     className,
     onSelect,
     onChange,
-    onEnter
+    onEnter,
+    onFocus
 }) => {
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
@@ -116,6 +118,7 @@ export const Autocomplete: React.FC<AutocompleteProps> = ({
                 className="order-input" // Use the standard input class
                 onFocus={() => {
                     if (value) setShowSuggestions(true);
+                    if (onFocus) onFocus();
                 }}
             />
             {showSuggestions && value && filteredSuggestions.length > 0 && (

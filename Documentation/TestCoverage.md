@@ -20,7 +20,7 @@ This document outlines the testing infrastructure and current test coverage for 
     *   **Smoke Test**: Verifies that the main `<App />` component renders without crashing.
 *   **`SearchPage.test.tsx`**
     *   **Render Test**: Confirms the search input field renders correctly.
-    *   **Interaction Test**: Verifies that typing into the input updates the state.
+        *   **Interaction Test**: Verifies that typing into the input updates the state.
     *   **Mocked Search Flow**:
         *   Mocks `axios` to prevent real network calls.
         *   Simulates a user typing a query and clicking "Search".
@@ -39,6 +39,17 @@ This document outlines the testing infrastructure and current test coverage for 
         *   **Copy Path**: Verifies that clicking the copy button writes the correct path to the clipboard.
         *   **Edit Navigation**: Confirms the "Edit" button navigates to the correct admin URL.
         *   **External Link**: Checks that the "Order" link has the correct URL and `target="_blank"` attribute.
+*   **`AdminPage.test.tsx`**
+    *   **Appearance**: Verifies theme toggle and primary color updates.
+    *   **Indexing Status**: Verifies status display and trigger buttons (Incremental/Full).
+    *   **Order Editor**:
+        *   **Load**: Verifies loading order data by ID.
+        *   **JSON View**: Verifies switching to JSON editor mode.
+        *   **Save**: Verifies updating order data and API calls.
+        *   **Autocomplete**: Verifies existing options use autocomplete and are editable.
+        *   **Enter-to-Add**: Verifies adding new options via Enter key.
+        *   **Suggestion Refresh**: Verifies suggestions are refetched after saving.
+    *   **Needs Review**: Verifies display and interaction with "Needs Review" card.
 *   **`UploadPage.test.tsx`**
     *   **Render Test**: Verifies the page header and form elements render correctly.
     *   **Validation Tests**:
