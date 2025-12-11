@@ -12,7 +12,7 @@ This guide explains how to deploy the `hc-photo-search` application on TrueNAS S
 2.  **Order Storage**: You need a Dataset on TrueNAS where your order photos are stored.
     - Example: `/mnt/pool1/orders`
 
-3.  **Meilisearch Data**: You should create a Dataset to persist the search index.
+3.  **Meilisearch Data**: You need a persistent location for the search index. This can be a dedicated Dataset OR a folder within an existing Dataset.
     - Example: `/mnt/pool1/app_data/hc_photo_search/meili_data`
 
 ## Docker Compose Configuration
@@ -28,7 +28,7 @@ services:
     ports:
       - "3000:80" # Maps port 80 inside to 3000 on TrueNAS host
     volumes:
-      - /mnt/pool1/orders:/mnt/orders:ro # Read-only access to photos (optional, frontend doesn't strictly need it but good practice if needed)
+      - ${ORDERS_PATH}:/mnt/orders:ro # Read-only access to photos (optional, frontend doesn't strictly need it but good practice if needed)
     depends_on:
       - api
 
@@ -47,7 +47,7 @@ services:
       - ORDERS_DISPLAY_PATH=${ORDERS_DISPLAY_PATH}
     volumes:
       # CRITICAL: Maps the host dataset to the container path expected by code
-      - /mnt/pool1/orders:/mnt/orders:rw 
+      - ${ORDERS_PATH}:/mnt/orders:rw 
     depends_on:
       - search
 
@@ -64,9 +64,7 @@ services:
       - MEILISEARCH_MASTER_KEY=${MEILISEARCH_MASTER_KEY}
       - CRON_SCHEDULE=0 4 * * * # daily at 4am
     volumes:
-      - /mnt/pool1/orders:/mnt/orders:rw # Read-write for creating order.meta.json
-      # Optional: Map logs
-      # - /mnt/pool1/app_data/hc_photo_search/logs:/app/logs
+      - ${ORDERS_PATH}:/mnt/orders:rw # Read-write for creating order.meta.json
 
   search:
     image: getmeili/meilisearch:v1.12
@@ -76,7 +74,7 @@ services:
       - MEILI_MASTER_KEY=${MEILISEARCH_MASTER_KEY}
       - MEILI_NO_ANALYTICS=true
     volumes:
-      - /mnt/pool1/app_data/hc_photo_search/meili_data:/meili_data
+      - ${MEILI_DATA_PATH}:/meili_data
 
 # No named volumes needed if using host path mapping for meili_data
 ```
@@ -87,9 +85,11 @@ Configure these in your TrueNAS App Environment settings (or `.env` file if usin
 | Variable | Description | Example |
 | :--- | :--- | :--- |
 | `MEILISEARCH_MASTER_KEY` | Secure key for Meilisearch | `complex_random_string` |
+| `MEILI_DATA_PATH` | Host path for Meilisearch Data | `/mnt/pool1/app_data/meili_data` |
 | `VOLUSION_API_URL` | Volusion API Endpoint | `http://www.example.com/net/WebService.aspx` |
 | `VOLUSION_API_LOGIN` | API User Email | `api@example.com` |
 | `VOLUSION_API_PW` | Encrypted API Password | `EncryptedString...` |
+| `ORDERS_PATH` | Host path for Orders (Dataset) | `/mnt/pool1/orders` |
 | `ORDERS_DISPLAY_PATH` | Path for "Copy Path" button | `\\NAS\Orders` or `Z:\Orders` |
 
 ## Networking Notes

@@ -30,6 +30,7 @@ Create a `.env` file in the root directory with the following variables:
 | :--- | :--- |
 | `ORDERS_PATH` | Absolute path to the local directory containing order folders. |
 | `ORDERS_DISPLAY_PATH` | The path to display in the UI for users to copy (e.g., a UNC path like `\\server\share\orders`). |
+| `MEILI_DATA_PATH` | Host path for persisting the Meilisearch data index (e.g., `/mnt/app_data/meili_data`). |
 | `MEILISEARCH_MASTER_KEY` | A secure key for protecting the Meilisearch instance. |
 | `VOLUSION_API_URL` | The base URL for the Volusion store API. |
 | `VOLUSION_API_LOGIN` | Login email/username for the Volusion API. |
